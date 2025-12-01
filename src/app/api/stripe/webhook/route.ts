@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     }
 
     const stripe = new Stripe(stripeSecretKey, {
-      apiVersion: "2024-12-18.acacia",
+      apiVersion: "2025-11-17.clover" as const,
     });
 
     // リクエストボディを取得（署名検証用）

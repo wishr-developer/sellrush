@@ -157,7 +157,7 @@ export default function DashboardClient() {
         // セキュリティ: 想定外 role は即リダイレクト
         // ただし、過去に作成された role 未設定ユーザーは Creator として扱い、
         // ループを避けるため /login には戻さない。
-        const userRole = user.user_metadata?.role;
+        const userRole = user?.user_metadata?.role;
         if (userRole === "admin") {
           hasRedirected = true;
           setIsLoading(false); // リダイレクト前に loading を解除
@@ -193,11 +193,11 @@ export default function DashboardClient() {
         // Show password setup if:
         // 1. User has only email provider (Magic Link login)
         // 2. User hasn't dismissed the modal before
-        const providers = user.app_metadata?.providers || [];
+        const providers = user?.app_metadata?.providers || [];
         const hasEmailOnly = providers.length === 1 && providers[0] === "email";
 
         // Show password setup if email-only provider
-        if (hasEmailOnly) {
+        if (hasEmailOnly && user?.id) {
           // Check if user has dismissed this before (localStorage)
           const dismissed = localStorage.getItem(`password-setup-dismissed-${user.id}`);
           if (!dismissed) {
@@ -209,8 +209,9 @@ export default function DashboardClient() {
         if (!mounted || hasRedirected) return;
 
         // データ取得（エラーが発生しても続行）
+        if (!user?.id) return;
         try {
-          await fetchSalesData(user.id);
+          await fetchSalesData(user.id!);
         } catch (e) {
           // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
           if (process.env.NODE_ENV === "development") {
@@ -220,8 +221,9 @@ export default function DashboardClient() {
 
         if (!mounted || hasRedirected) return;
 
+        if (!user?.id) return;
         try {
-          await fetchPayoutStats(user.id);
+          await fetchPayoutStats(user.id!);
         } catch (e) {
           if (process.env.NODE_ENV === "development") {
             console.error("報酬データ取得エラー:", e);
@@ -230,8 +232,9 @@ export default function DashboardClient() {
 
         if (!mounted || hasRedirected) return;
 
+        if (!user?.id) return;
         try {
-          await fetchBattleStatus(user.id);
+          await fetchBattleStatus(user.id!);
         } catch (e) {
           // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
           if (process.env.NODE_ENV === "development") {
@@ -1116,8 +1119,8 @@ export default function DashboardClient() {
             </div>
           </div>
 
-            {/* 現在の順位 */}
-            <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-zinc-950/80 to-zinc-900/60 p-4">
+          {/* 現在の順位 */}
+          <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-zinc-950/80 to-zinc-900/60 p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Target className="w-4 h-4 text-purple-400" />
                 <p className="text-xs text-zinc-400 uppercase tracking-wide">
@@ -1143,7 +1146,6 @@ export default function DashboardClient() {
                   </p>
                 </div>
               )}
-            </div>
           </div>
 
           {/* 累計サマリ（小さめ） */}

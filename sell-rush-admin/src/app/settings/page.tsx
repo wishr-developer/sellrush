@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog'
+import { Button } from '../../components/ui/button'
+import { Input } from '../../components/ui/input'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '../../components/ui/dialog'
 import { Shield, QrCode, CheckCircle, XCircle, Loader2 } from 'lucide-react'
 import QRCodeLib from 'qrcode'
 
@@ -27,10 +27,11 @@ export default function SettingsPage() {
   useEffect(() => {
     const checkMfaStatus = async () => {
       try {
-        const { data: { factors }, error } = await supabase.auth.mfa.listFactors()
+        const { data, error } = await supabase.auth.mfa.listFactors()
         if (error) throw error
         
-        const totpFactor = factors?.find((factor) => factor.factor_type === 'totp' && factor.status === 'verified')
+        const factors = data?.all || []
+        const totpFactor = factors.find((factor) => factor.factor_type === 'totp' && factor.status === 'verified')
         setMfaEnabled(!!totpFactor)
       } catch (error) {
         console.error('MFAステータスの確認に失敗:', error)
@@ -118,10 +119,11 @@ export default function SettingsPage() {
     setErrorMessage(null)
 
     try {
-      const { data: { factors }, error: listError } = await supabase.auth.mfa.listFactors()
+      const { data, error: listError } = await supabase.auth.mfa.listFactors()
       if (listError) throw listError
 
-      const totpFactor = factors?.find((factor) => factor.factor_type === 'totp' && factor.status === 'verified')
+      const factors = data?.all || []
+      const totpFactor = factors.find((factor) => factor.factor_type === 'totp' && factor.status === 'verified')
       if (!totpFactor) {
         throw new Error('MFAファクターが見つかりません')
       }

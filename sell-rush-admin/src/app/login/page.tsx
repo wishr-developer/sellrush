@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '../../components/ui/button'
+import { Input } from '../../components/ui/input'
 import { Mail, Lock, Shield, ArrowRight, Loader2 } from 'lucide-react'
 
 type LoginPhase = 'credentials' | 'mfa'
@@ -74,11 +74,12 @@ export default function LoginPage() {
 
     try {
       // 登録済みのMFAファクターを取得
-      const { data: { factors }, error: listError } = await supabase.auth.mfa.listFactors()
+      const { data, error: listError } = await supabase.auth.mfa.listFactors()
       
       if (listError) throw listError
 
-      const totpFactor = factors?.find((factor) => factor.factor_type === 'totp' && factor.status === 'verified')
+      const factors = data?.all || []
+      const totpFactor = factors.find((factor) => factor.factor_type === 'totp' && factor.status === 'verified')
       
       if (!totpFactor) {
         throw new Error('MFAファクターが見つかりません')

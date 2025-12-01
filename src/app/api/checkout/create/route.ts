@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       );
     }
     const stripe = new Stripe(stripeSecretKey, {
-      apiVersion: "2024-12-18.acacia",
+      apiVersion: "2025-11-17.clover" as const,
     });
 
     // Supabase 初期化
@@ -114,7 +114,6 @@ export async function POST(request: NextRequest) {
             currency: "jpy",
             product_data: {
               name: product.name,
-              description: product.description || undefined,
             },
             unit_amount: product.price, // 金額は円単位（Stripeは最小単位で指定）
           },

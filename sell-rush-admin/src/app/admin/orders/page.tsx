@@ -16,7 +16,7 @@ import {
 } from "recharts";
 import { supabase } from "@/lib/supabase";
 import { buildCreatorStatsMap, buildProductStatsMap } from "./stats";
-import type { CreatorStats, ProductStats } from "./types";
+import type { CreatorStats, ProductStats, Order, OrderStatus } from "./types";
 
 type RangeKey = "today" | "7d" | "30d";
 
@@ -29,6 +29,28 @@ type OrderRow = {
   product_id?: string | null;
   brand_id?: string | null;
 };
+
+/**
+ * OrderRow を Order に変換するヘルパー関数
+ * status を OrderStatus 型に変換する
+ */
+function mapOrderRowToOrder(row: OrderRow): Order {
+  // string | null を OrderStatus に変換
+  let status: OrderStatus = null;
+  if (row.status === "completed" || row.status === "pending" || row.status === "cancelled") {
+    status = row.status;
+  }
+  
+  return {
+    id: row.id,
+    created_at: row.created_at,
+    amount: row.amount,
+    status: status,
+    creator_id: row.creator_id,
+    product_id: row.product_id,
+    brand_id: row.brand_id,
+  };
+}
 
 type StatusFilter = "all" | "completed" | "pending" | "cancelled";
 
@@ -442,13 +464,13 @@ export default function AdminOrdersPage() {
   // Creator ごとの集計
   // Creator ごとの集計（関数に切り出し）
   const creatorStatsMap = useMemo(
-    () => buildCreatorStatsMap(orders),
+    () => buildCreatorStatsMap(orders.map(mapOrderRowToOrder)),
     [orders]
   );
 
   // Product ごとの集計（関数に切り出し）
   const productStatsMap = useMemo(
-    () => buildProductStatsMap(orders),
+    () => buildProductStatsMap(orders.map(mapOrderRowToOrder)),
     [orders]
   );
 

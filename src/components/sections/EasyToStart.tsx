@@ -14,12 +14,12 @@ export const EasyToStartSection: React.FC = () => {
   const c = copy.easy;
   const cardVariants = {
     hidden: { opacity: 0, y: 24 },
-    visible: (index: number) => ({
+    visible: {
       opacity: 1,
       y: 0,
-      transition: { duration: 0.6, delay: 0.1 + index * 0.08, ease: "easeOut" },
-    }),
-  };
+      transition: { duration: 0.6, delay: 0.1, ease: "easeOut" },
+    },
+  } as const;
 
   return (
     <SectionWrapper id="easy" variant="cyan">

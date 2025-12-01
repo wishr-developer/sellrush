@@ -152,7 +152,7 @@ export default function RankingBoard({ currentUserId, myRank }: RankingBoardProp
               currentUserId.includes(creatorId)))
           )
 
-          const rankStyle = getRankStyle(item.rank, isCurrentUser)
+          const rankStyle = getRankStyle(item.rank, !!isCurrentUser)
           const isTopThree = item.rank <= 3
 
           return (

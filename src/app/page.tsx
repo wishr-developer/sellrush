@@ -44,7 +44,7 @@ type LandingPageInnerProps = {
  */
 export function LandingPageInner({
   initialLanguage,
-}: LandingPageInnerProps): JSX.Element {
+}: LandingPageInnerProps): React.ReactElement {
   const [activeSectionId, setActiveSectionId] = useState<SectionId>("hero");
   const [isEarlyAccessOpen, setIsEarlyAccessOpen] = useState(false);
   const [earlyAccessSource, setEarlyAccessSource] = useState<
@@ -144,7 +144,7 @@ export function LandingPageInner({
   );
 }
 
-export default function LandingPage(): JSX.Element {
+export default function LandingPage(): React.ReactElement {
   // ルート `/` は initialLanguage を指定せず、
   // LanguageProvider 内でブラウザ言語を見て判定させる。
   return <LandingPageInner />;

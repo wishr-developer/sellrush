@@ -31,7 +31,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default function LandingPageEn(): JSX.Element {
+export default function LandingPageEn(): React.ReactElement {
   // `/en` では URL を最優先し、初期言語を強制的に "en" にする
   return <LandingPageInner initialLanguage="en" />;
 }

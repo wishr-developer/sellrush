@@ -179,15 +179,15 @@ export default function BrandDashboardPage() {
       });
 
       // 5. 商品別売上集計（直近30日）
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const thirtyDaysAgoDate = new Date();
+      thirtyDaysAgoDate.setDate(thirtyDaysAgoDate.getDate() - 30);
 
       const { data: productOrders } = await supabase
         .from("orders")
         .select("product_id, amount")
         .in("product_id", productIds)
         .eq("status", "completed")
-        .gte("created_at", thirtyDaysAgo.toISOString());
+        .gte("created_at", thirtyDaysAgoDate.toISOString());
 
       // 商品ごとに集計
       const productStatsMap = new Map<string, { name: string; gmv: number; orders: number }>();
