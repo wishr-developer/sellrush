@@ -64,7 +64,7 @@ function mapSupabaseRowToOrder(row: any): OrderWithReferrer {
     referrer: row.referrer || null,
     companyName: row.company_name || undefined,
     productDescription: row.product_description || undefined,
-  }
+  };
 }
 
 /**
