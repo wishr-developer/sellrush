@@ -1,36 +1,135 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SELL RUSH - マルチポータル構成
 
-## Getting Started
+SELL RUSHは「公式サイト + 3種の管理画面」に明確に分離されたマルチポータル構成です。
 
-First, run the development server:
+## ポート・役割定義
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+| ポート | 役割 | URL |
+|--------|------|-----|
+| **3000** | 公式サイト（総合エントランス） | http://localhost:3000 |
+| **3001** | インフルエンサー向け管理画面 | http://localhost:3001 |
+| **3002** | 企業向け管理画面 | http://localhost:3002 |
+| **3003** | 運営管理者向け管理画面 | http://localhost:3003 |
+
+## プロジェクト構造
+
+```
+sell-rush-lp/
+├── src/                    # 公式サイト (localhost:3000)
+│   ├── app/
+│   │   ├── page.tsx       # トップページ（アリーナ型）
+│   │   └── login/         # ログイン・会員登録
+│   └── middleware.ts      # 認証制御（role別リダイレクト）
+│
+├── sell-rush-influencer/  # インフルエンサー管理画面 (localhost:3001)
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── page.tsx   # ダッシュボード（司令室）
+│   │   │   └── products/  # 商品一覧
+│   │   └── middleware.ts  # role=influencer制御
+│
+├── sell-rush-company/     # 企業管理画面 (localhost:3002)
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── dashboard/ # ダッシュボード
+│   │   │   └── products/  # 商品管理
+│   │   └── middleware.ts  # role=company制御
+│
+└── sell-rush-admin/       # 運営管理画面 (localhost:3003)
+    ├── src/
+    │   ├── app/
+    │   │   ├── login/     # ログイン（MFA必須）
+    │   │   ├── mfa-setup/ # MFAセットアップ
+    │   │   └── page.tsx   # 管理ダッシュボード
+    │   └── middleware.ts  # role=admin + MFA制御
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 起動方法
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**重要**: 各プロジェクトは**別々のターミナルウィンドウ**で起動してください。
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 1. 公式サイト (localhost:3000)
 
-## Learn More
+ターミナル1で実行:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+cd sell-rush-lp
+npm install
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 2. インフルエンサー管理画面 (localhost:3001)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+ターミナル2で実行:
 
-## Deploy on Vercel
+```bash
+cd sell-rush-lp/sell-rush-influencer
+npm install
+npm run dev
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 3. 企業管理画面 (localhost:3002)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+ターミナル3で実行:
+
+```bash
+cd sell-rush-lp/sell-rush-company
+npm install
+npm run dev
+```
+
+### 4. 運営管理画面 (localhost:3003)
+
+ターミナル4で実行:
+
+```bash
+cd sell-rush-lp/sell-rush-admin
+npm install
+npm run dev
+```
+
+## 認証・認可フロー
+
+### ログイン・会員登録
+
+1. **公式サイト (localhost:3000)** でログイン・会員登録
+2. ログイン成功後、**ユーザーのroleに応じて自動リダイレクト**:
+   - `influencer` → http://localhost:3001
+   - `company` → http://localhost:3002
+   - `admin` → http://localhost:3003
+
+### 各管理画面の認可
+
+- **インフルエンサー管理画面**: `role = influencer` のみアクセス可能
+- **企業管理画面**: `role = company` のみアクセス可能
+- **運営管理画面**: `role = admin` かつ **MFA（多要素認証）必須**
+
+## 運営管理者ログイン情報（初期）
+
+- **メールアドレス**: info@xiora-official.com
+- **パスワード**: Xiora123!
+- **認証方式**: Supabase Auth + Google Authenticator（TOTP）
+
+## 環境変数
+
+各プロジェクトで以下の環境変数を設定してください：
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+## 技術スタック
+
+- **Next.js 16** (App Router)
+- **TypeScript**
+- **Supabase** (Auth, DB, Storage)
+- **Tailwind CSS**
+- **Lucide React** (アイコン)
+
+## セキュリティ
+
+- Middlewareによる認証・認可制御
+- ロールベースアクセス制御（RBAC）
+- 運営管理画面はMFA（多要素認証）必須
+- 各ポートで共通のSupabase DB・Authを使用
