@@ -37,6 +37,7 @@ import MobileTabBar from "@/components/MobileTabBar";
 import RankingBoard from "@/components/RankingBoard";
 import { PasswordSetupModal } from "@/components/auth/PasswordSetupModal";
 import { AffiliateLinkModal } from "@/components/dashboard/AffiliateLinkModal";
+import { DashboardCard } from "@/components/dashboard/DashboardCard";
 import { showErrorToast, showSuccessToast } from "@/components/ui/Toast";
 import { DashboardSkeleton } from "@/components/ui/LoadingSkeleton";
 import type {
@@ -48,6 +49,11 @@ import type {
   BattleStatus,
   DailyPoint,
 } from "@/types/dashboard";
+import type { LoadingState, ErrorState } from "@/types/dashboard-loading";
+import {
+  initialLoadingState,
+  initialErrorState,
+} from "@/types/dashboard-loading";
 
 // 型定義は @/types/dashboard からインポート
 
@@ -84,6 +90,10 @@ export default function DashboardClient() {
 
   // 認証エラー表示用（/login へのハードリダイレクトは行わず、画面上で静かに表示する）
   const [authError, setAuthError] = useState<string | null>(null);
+
+  // 個別のローディング/エラー状態管理
+  const [loadingState, setLoadingState] = useState<LoadingState>(initialLoadingState);
+  const [errorState, setErrorState] = useState<ErrorState>(initialErrorState);
 
   // getUser が null を返した場合のリトライ制御用フラグ。
   // ログイン直後はセッション確立に僅かなラグがあるため、
@@ -365,6 +375,10 @@ export default function DashboardClient() {
         if (process.env.NODE_ENV === "development") {
           console.error("売上データの取得に失敗しました:", error);
         }
+        setErrorState((prev) => ({
+          ...prev,
+          sales: "売上データの取得に失敗しました",
+        }));
         showErrorToast("売上データの取得に失敗しました");
         return;
       }
@@ -456,13 +470,29 @@ export default function DashboardClient() {
         };
       });
       setOrders((prev) => (prev.length === 0 ? prev : []));
+    } finally {
+      // ローディング終了
+      setLoadingState((prev) => ({ ...prev, sales: false }));
     }
   }, []); // 依存配列を空にして、関数を固定
 
   /**
    * 報酬データを取得（payouts テーブルから）
+   * 
+   * データソース:
+   * - payouts (自分の報酬レコード)
+   * 
+   * 計算ロジック:
+   * - totalPending: status = 'pending' の creator_amount を合計
+   * - totalPaid: status = 'paid' の creator_amount を合計
+   * - pendingCount: status = 'pending' の件数
+   * - paidCount: status = 'paid' の件数
    */
   const fetchPayoutStats = useCallback(async (userId: string) => {
+    // ローディング開始、エラー状態をクリア
+    setLoadingState((prev) => ({ ...prev, payouts: true }));
+    setErrorState((prev) => ({ ...prev, payouts: null }));
+
     try {
       const { data, error } = await supabase
         .from("payouts")
@@ -473,6 +503,10 @@ export default function DashboardClient() {
         if (process.env.NODE_ENV === "development") {
           console.error("Payout stats fetch error:", error);
         }
+        setErrorState((prev) => ({
+          ...prev,
+          payouts: "報酬データの取得に失敗しました",
+        }));
         showErrorToast("報酬データの取得に失敗しました");
         return;
       }
@@ -502,6 +536,13 @@ export default function DashboardClient() {
       if (process.env.NODE_ENV === "development") {
         console.error("Payout stats fetch error:", error);
       }
+      setErrorState((prev) => ({
+        ...prev,
+        payouts: "報酬データの取得中にエラーが発生しました",
+      }));
+    } finally {
+      // ローディング終了
+      setLoadingState((prev) => ({ ...prev, payouts: false }));
     }
   }, []);
 
@@ -577,10 +618,20 @@ export default function DashboardClient() {
    * API エンドポイント経由で全体ランキングを取得し、自分の順位を更新
    * useCallback でメモ化して再レンダリングループを防止
    *
+   * データソース:
+   * - /api/rankings (Service Role Key を使用して全注文を集計)
+   * 
+   * 計算ロジック:
+   * - myRank: API から返された自分の順位
+   * 
    * NOTE: fetchBattleStatus からも参照されるため、
    * TDZ（Temporal Dead Zone）を避ける目的で先に定義している。
    */
   const fetchRanking = useCallback(async (userId: string) => {
+    // ローディング開始、エラー状態をクリア
+    setLoadingState((prev) => ({ ...prev, ranking: true }));
+    setErrorState((prev) => ({ ...prev, ranking: null }));
+
     try {
       const response = await fetch("/api/rankings");
       
@@ -589,6 +640,10 @@ export default function DashboardClient() {
         if (process.env.NODE_ENV === "development") {
           console.error("ランキングAPIの取得に失敗しました");
         }
+        setErrorState((prev) => ({
+          ...prev,
+          ranking: "ランキングの取得に失敗しました",
+        }));
         setMyRank(null);
         return;
       }
@@ -606,7 +661,14 @@ export default function DashboardClient() {
       if (process.env.NODE_ENV === "development") {
         console.error("ランキングデータの取得エラー:", error);
       }
+      setErrorState((prev) => ({
+        ...prev,
+        ranking: "ランキングデータの取得中にエラーが発生しました",
+      }));
       setMyRank(null);
+    } finally {
+      // ローディング終了
+      setLoadingState((prev) => ({ ...prev, ranking: false }));
     }
   }, []); // 依存配列を空にして、関数を固定
 
@@ -650,6 +712,10 @@ export default function DashboardClient() {
         if (process.env.NODE_ENV === "development") {
           console.error("バトル情報の取得に失敗しました:", battlesError);
         }
+        setErrorState((prev) => ({
+          ...prev,
+          battles: "バトル情報の取得に失敗しました",
+        }));
         setBattles((prev) => (prev.length === 0 ? prev : []));
         return;
       }
@@ -756,14 +822,31 @@ export default function DashboardClient() {
         }
         return [];
       });
+      setErrorState((prev) => ({
+        ...prev,
+        battles: "バトル状況の取得中にエラーが発生しました",
+      }));
+    } finally {
+      // ローディング終了
+      setLoadingState((prev) => ({ ...prev, battles: false }));
     }
   }, [fetchRanking]); // fetchRanking を依存配列に追加
 
   /**
    * 商品一覧を取得
    * useCallback でメモ化して再レンダリングループを防止
+   * 
+   * データソース:
+   * - products (status = 'active' の商品)
+   * 
+   * 用途:
+   * - テスト売上生成モーダルで使用
    */
   const fetchProducts = useCallback(async () => {
+    // ローディング開始、エラー状態をクリア
+    setLoadingState((prev) => ({ ...prev, products: true }));
+    setErrorState((prev) => ({ ...prev, products: null }));
+
     try {
       const { data, error } = await supabase
         .from("products")
@@ -776,6 +859,10 @@ export default function DashboardClient() {
         if (process.env.NODE_ENV === "development") {
           console.error("商品データの取得に失敗しました:", error);
         }
+        setErrorState((prev) => ({
+          ...prev,
+          products: "商品データの取得に失敗しました",
+        }));
         return;
       }
 
@@ -809,6 +896,13 @@ export default function DashboardClient() {
       if (process.env.NODE_ENV === "development") {
         console.error("商品データの取得エラー:", error);
       }
+      setErrorState((prev) => ({
+        ...prev,
+        products: "商品データの取得中にエラーが発生しました",
+      }));
+    } finally {
+      // ローディング終了
+      setLoadingState((prev) => ({ ...prev, products: false }));
     }
   }, []); // 依存配列を空にして、関数を固定
 
@@ -1013,71 +1107,73 @@ export default function DashboardClient() {
             </div>
 
             {/* 今日の売上 */}
-            <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-zinc-950/80 to-zinc-900/60 p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp className="w-4 h-4 text-sky-400" />
-                <p className="text-xs text-zinc-400 uppercase tracking-wide">
-                  今日の売上
-                </p>
-              </div>
+            <DashboardCard
+              title="今日の売上"
+              icon={<TrendingUp className="w-4 h-4 text-sky-400" />}
+              isLoading={loadingState.sales}
+              error={errorState.sales}
+              onRetry={user?.id ? () => fetchSalesData(user.id) : undefined}
+            >
               <p className="text-lg font-semibold text-white mb-1">
                 ¥{todayStats.gmv.toLocaleString()}
               </p>
               <p className="text-[11px] text-zinc-500">
                 {todayStats.count} 件の注文
               </p>
-            </div>
+            </DashboardCard>
 
             {/* 報酬見込み */}
-            <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-zinc-950/80 to-zinc-900/60 p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Trophy className="w-4 h-4 text-emerald-400" />
-                <p className="text-xs text-zinc-400 uppercase tracking-wide">
-                  報酬見込み
-                </p>
-              </div>
+            <DashboardCard
+              title="報酬見込み"
+              icon={<Trophy className="w-4 h-4 text-emerald-400" />}
+              isLoading={loadingState.sales}
+              error={errorState.sales}
+              onRetry={user?.id ? () => fetchSalesData(user.id) : undefined}
+            >
               <p className="text-lg font-semibold text-white mb-1">
                 ¥{salesStats.estimatedCommission.toLocaleString()}
               </p>
               <p className="text-[11px] text-zinc-500">
                 累計売上の30%相当
               </p>
-            </div>
+            </DashboardCard>
           </div>
 
           {/* 報酬サマリー（確定済み/pending） */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             {/* 確定済み報酬 */}
-            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <CheckCircle className="w-4 h-4 text-emerald-400" />
-                <p className="text-xs text-zinc-400 uppercase tracking-wide">
-                  確定済み報酬
-                </p>
-              </div>
+            <DashboardCard
+              title="確定済み報酬"
+              icon={<CheckCircle className="w-4 h-4 text-emerald-400" />}
+              isLoading={loadingState.payouts}
+              error={errorState.payouts}
+              onRetry={user?.id ? () => fetchPayoutStats(user.id) : undefined}
+              className="border-emerald-500/20 bg-emerald-500/5"
+            >
               <p className="text-xl font-semibold text-emerald-400 mb-1">
                 ¥{payoutStats.totalPaid.toLocaleString()}
               </p>
               <p className="text-[11px] text-zinc-500">
                 {payoutStats.paidCount}件の支払い済み
               </p>
-            </div>
+            </DashboardCard>
 
             {/* 支払い待ち報酬 */}
-            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Zap className="w-4 h-4 text-amber-400" />
-                <p className="text-xs text-zinc-400 uppercase tracking-wide">
-                  支払い待ち
-                </p>
-              </div>
+            <DashboardCard
+              title="支払い待ち"
+              icon={<Zap className="w-4 h-4 text-amber-400" />}
+              isLoading={loadingState.payouts}
+              error={errorState.payouts}
+              onRetry={user?.id ? () => fetchPayoutStats(user.id) : undefined}
+              className="border-amber-500/20 bg-amber-500/5"
+            >
               <p className="text-xl font-semibold text-amber-400 mb-1">
                 ¥{payoutStats.totalPending.toLocaleString()}
               </p>
               <p className="text-[11px] text-zinc-500">
                 {payoutStats.pendingCount}件の処理待ち
               </p>
-            </div>
+            </DashboardCard>
           </div>
 
           {/* 現在の順位 */}
