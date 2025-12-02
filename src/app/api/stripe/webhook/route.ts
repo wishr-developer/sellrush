@@ -99,56 +99,101 @@ export async function POST(request: NextRequest) {
       // 注文金額（Stripe は最小単位で返すので、JPY の場合はそのまま使用）
       const amount = session.amount_total;
 
-      // 1. orders テーブルにレコードを作成
-      const { data: order, error: orderError } = await supabase
+      // 冪等性の確保: stripe_session_id で既存の注文をチェック
+      // Webhook の再送信時に重複して注文を作成しないようにする
+      const { data: existingOrder } = await supabase
         .from("orders")
-        .insert({
-          product_id: productId,
-          product_name: productName,
-          price: productPrice,
-          amount: amount,
-          creator_id: creatorId,
-          affiliate_link_id: affiliateLinkId,
-          status: "completed",
-          source: "stripe",
-          payment_intent_id: session.payment_intent as string | null,
-          stripe_session_id: session.id,
-        })
-        .select()
+        .select("id, status")
+        .eq("stripe_session_id", session.id)
         .single();
 
-      if (orderError) {
-        // TODO: payment_logs テーブルを作成して、失敗時のログを記録する
-        return internalServerError("Failed to create order");
+      let order: any = null;
+
+      if (existingOrder) {
+        // 既存の注文がある場合は、その注文を使用（冪等性の確保）
+        order = existingOrder;
+        // 本番環境ではログを出力しない（開発環境のみ）
+        if (process.env.NODE_ENV === "development") {
+          console.log(`Order already exists for session ${session.id}, skipping creation`);
+        }
+      } else {
+        // 1. orders テーブルにレコードを作成
+        const { data: newOrder, error: orderError } = await supabase
+          .from("orders")
+          .insert({
+            product_id: productId,
+            product_name: productName,
+            price: productPrice,
+            amount: amount,
+            creator_id: creatorId,
+            affiliate_link_id: affiliateLinkId,
+            status: "completed",
+            source: "stripe",
+            payment_intent_id: session.payment_intent as string | null,
+            stripe_session_id: session.id,
+          })
+          .select()
+          .single();
+
+        if (orderError) {
+          // TODO: payment_logs テーブルを作成して、失敗時のログを記録する
+          // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
+          if (process.env.NODE_ENV === "development") {
+            console.error("Order creation error:", orderError);
+          }
+          return internalServerError("Failed to create order");
+        }
+
+        order = newOrder;
       }
 
       // 2. payouts を自動生成
       // Revenue Share 計算ロジックを統一関数を使用
+      // 冪等性の確保: order_id で既存の payout をチェック
       if (order) {
-        const grossAmount = amount;
-        const revenueShare = calculateRevenueShareFromProduct(
-          grossAmount,
-          creatorShareRate,
-          platformTakeRate
-        );
-
-        const { error: payoutError } = await supabase
+        // 既存の payout をチェック（重複生成を防ぐ）
+        const { data: existingPayout } = await supabase
           .from("payouts")
-          .insert({
-            order_id: order.id,
-            creator_id: creatorId,
-            brand_id: ownerId,
-            gross_amount: grossAmount,
-            creator_amount: revenueShare.creatorAmount,
-            platform_amount: revenueShare.platformAmount,
-            brand_amount: revenueShare.brandAmount,
-            status: "pending",
-          });
+          .select("id")
+          .eq("order_id", order.id)
+          .single();
 
-        if (payoutError) {
-          console.error("Payout creation error:", payoutError);
-          // 注文は作成済みなので、エラーをログに記録するだけ
-          // TODO: payment_logs テーブルに記録
+        if (existingPayout) {
+          // 既存の payout がある場合はスキップ（冪等性の確保）
+          // 本番環境ではログを出力しない（開発環境のみ）
+          if (process.env.NODE_ENV === "development") {
+            console.log(`Payout already exists for order ${order.id}, skipping creation`);
+          }
+        } else {
+          // 新しい payout を作成
+          const grossAmount = amount;
+          const revenueShare = calculateRevenueShareFromProduct(
+            grossAmount,
+            creatorShareRate,
+            platformTakeRate
+          );
+
+          const { error: payoutError } = await supabase
+            .from("payouts")
+            .insert({
+              order_id: order.id,
+              creator_id: creatorId,
+              brand_id: ownerId,
+              gross_amount: grossAmount,
+              creator_amount: revenueShare.creatorAmount,
+              platform_amount: revenueShare.platformAmount,
+              brand_amount: revenueShare.brandAmount,
+              status: "pending",
+            });
+
+          if (payoutError) {
+            // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
+            if (process.env.NODE_ENV === "development") {
+              console.error("Payout creation error:", payoutError);
+            }
+            // 注文は作成済みなので、エラーをログに記録するだけ
+            // TODO: payment_logs テーブルに記録
+          }
         }
       }
 
@@ -159,7 +204,13 @@ export async function POST(request: NextRequest) {
     }
 
     // その他のイベントタイプは無視（ログのみ）
-    console.log(`Unhandled event type: ${event.type}`);
+    // 将来の実装予定:
+    // - payment_intent.succeeded: 現在は checkout.session.completed で十分
+    // - payment_intent.payment_failed: orders.status = 'failed' に更新
+    // - charge.refunded: orders.status = 'refunded' に更新、payouts の調整
+    if (process.env.NODE_ENV === "development") {
+      console.log(`Unhandled event type: ${event.type}`);
+    }
     return NextResponse.json({ received: true }, { status: 200 });
   } catch (error: any) {
     return internalServerError(
