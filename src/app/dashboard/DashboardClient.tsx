@@ -844,6 +844,46 @@ export default function DashboardClient() {
   }, [fetchRanking]); // fetchRanking を依存配列に追加
 
   /**
+   * 不正疑いの注文数を取得
+   * RLS前提: creator_id = auth.uid() の fraud_flags のみ取得可能（Adminのみ全件取得可能）
+   * 
+   * データソース:
+   * - `fraud_flags` テーブル (creator_id でフィルタ, reviewed=false)
+   * 
+   * 計算ロジック:
+   * - 未レビューの fraud_flags の件数をカウント
+   */
+  const fetchFraudFlagsCount = useCallback(async (userId: string) => {
+    try {
+      // RLS前提: creator_id = auth.uid() の fraud_flags のみ取得可能
+      // 注意: 現在は Admin のみ fraud_flags を閲覧可能なため、
+      // Creator は直接取得できない可能性がある
+      // 将来的には RLS ポリシーを追加して Creator も自分の fraud_flags を閲覧可能にする
+      const { data, error } = await supabase
+        .from("fraud_flags")
+        .select("id")
+        .eq("creator_id", userId)
+        .eq("reviewed", false);
+
+      if (error) {
+        // RLS でアクセスできない場合はエラーを無視（将来の実装を待つ）
+        if (process.env.NODE_ENV === "development") {
+          console.warn("Fraud flags fetch error (may be RLS restriction):", error);
+        }
+        setFraudFlagsCount(0);
+        return;
+      }
+
+      setFraudFlagsCount(data?.length || 0);
+    } catch (error) {
+      if (process.env.NODE_ENV === "development") {
+        console.error("Fraud flags count fetch error:", error);
+      }
+      setFraudFlagsCount(0);
+    }
+  }, []);
+
+  /**
    * 商品一覧を取得
    * useCallback でメモ化して再レンダリングループを防止
    * 
