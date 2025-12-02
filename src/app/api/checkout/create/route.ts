@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import Stripe from "stripe";
+import { validateStripeCheckoutEnv, publicEnv, serverEnv } from "@/lib/env";
 
 /**
  * Stripe Checkout Session 作成 API
@@ -14,28 +15,29 @@ import Stripe from "stripe";
  */
 export async function POST(request: NextRequest) {
   try {
-    // Stripe 初期化
-    const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-    if (!stripeSecretKey) {
+    // 環境変数のバリデーション
+    const envValidation = validateStripeCheckoutEnv();
+    if (!envValidation.isValid) {
+      console.error("Missing required environment variables:", envValidation.missing);
       return NextResponse.json(
-        { error: "Stripe secret key is not configured" },
+        { 
+          error: "Configuration error",
+          missing: envValidation.missing,
+          message: "Please configure the required environment variables in Vercel settings."
+        },
         { status: 500 }
       );
     }
+
+    // Stripe 初期化
+    const stripeSecretKey = serverEnv.stripeSecretKey!;
     const stripe = new Stripe(stripeSecretKey, {
       apiVersion: "2025-11-17.clover" as const,
     });
 
     // Supabase 初期化
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return NextResponse.json(
-        { error: "Missing Supabase configuration" },
-        { status: 500 }
-      );
-    }
+    const supabaseUrl = publicEnv.supabaseUrl!;
+    const supabaseAnonKey = publicEnv.supabaseAnonKey!;
 
     const supabase = createServerClient(
       supabaseUrl,

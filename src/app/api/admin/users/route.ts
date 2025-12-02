@@ -1,24 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
+import { validateStripeCheckoutEnv, publicEnv, serverEnv } from "@/lib/env";
 
 /**
  * Admin Users API Route
  * Fetches all users from Supabase Auth using Admin API
  * Requires admin role
+ * 
+ * ⚠️ 注意: Service Role Key が必要です（Admin API を使用するため）
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
+    // 環境変数のバリデーション
+    const envValidation = validateStripeCheckoutEnv();
+    if (!envValidation.isValid) {
       return NextResponse.json(
-        { error: "Missing Supabase configuration" },
+        { 
+          error: "Configuration error",
+          missing: envValidation.missing,
+        },
         { status: 500 }
       );
     }
+
+    const supabaseUrl = publicEnv.supabaseUrl!;
+    const supabaseAnonKey = publicEnv.supabaseAnonKey!;
+    const supabaseServiceRoleKey = serverEnv.supabaseServiceRoleKey;
 
     // Create server client to check admin role
     const supabase = createServerClient(
@@ -54,54 +62,56 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch users using Admin API (service_role key)
-    if (supabaseServiceRoleKey) {
-      const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      });
-
-      const {
-        data: { users },
-        error: listError,
-      } = await adminClient.auth.admin.listUsers();
-
-      if (listError) {
-        // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
-        if (process.env.NODE_ENV === "development") {
-          console.error("Admin listUsers error:", listError);
-        }
-        return NextResponse.json(
-          { error: "Failed to fetch users" },
-          { status: 500 }
-        );
-      }
-
-      // Format users for display
-      const formattedUsers = users.map((u) => ({
-        id: u.id,
-        email: u.email || "N/A",
-        role: u.user_metadata?.role || "N/A",
-        created_at: u.created_at,
-        last_sign_in_at: u.last_sign_in_at,
-      }));
-
-      return NextResponse.json({ users: formattedUsers });
-    } else {
-      // Fallback: If service_role key is not available, return empty array
-      // In production, service_role key should be set
+    // ⚠️ 重要: Admin API を使用するには Service Role Key が必須です
+    if (!supabaseServiceRoleKey) {
       // 本番環境では警告をログに出力しない（セキュリティ）
       if (process.env.NODE_ENV === "development") {
         console.warn(
           "SUPABASE_SERVICE_ROLE_KEY not set. Cannot fetch user list."
         );
       }
-      return NextResponse.json({
-        users: [],
-        error: "Service role key not configured",
-      });
+      return NextResponse.json(
+        { 
+          error: "Service role key not configured",
+          message: "SUPABASE_SERVICE_ROLE_KEY is required for admin operations. Please configure it in Vercel settings."
+        },
+        { status: 500 }
+      );
     }
+
+    const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+
+    const {
+      data: { users },
+      error: listError,
+    } = await adminClient.auth.admin.listUsers();
+
+    if (listError) {
+      // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
+      if (process.env.NODE_ENV === "development") {
+        console.error("Admin listUsers error:", listError);
+      }
+      return NextResponse.json(
+        { error: "Failed to fetch users" },
+        { status: 500 }
+      );
+    }
+
+    // Format users for display
+    const formattedUsers = users.map((u) => ({
+      id: u.id,
+      email: u.email || "N/A",
+      role: u.user_metadata?.role || "N/A",
+      created_at: u.created_at,
+      last_sign_in_at: u.last_sign_in_at,
+    }));
+
+    return NextResponse.json({ users: formattedUsers });
   } catch (error) {
     // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
     if (process.env.NODE_ENV === "development") {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { validateStripeCheckoutEnv, publicEnv } from "@/lib/env";
 
 /**
  * Affiliate Links Create API Route
@@ -7,15 +8,20 @@ import { createServerClient } from "@supabase/ssr";
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
+    // 環境変数のバリデーション
+    const envValidation = validateStripeCheckoutEnv();
+    if (!envValidation.isValid) {
       return NextResponse.json(
-        { error: "Missing Supabase configuration" },
+        { 
+          error: "Configuration error",
+          missing: envValidation.missing,
+        },
         { status: 500 }
       );
     }
+
+    const supabaseUrl = publicEnv.supabaseUrl!;
+    const supabaseAnonKey = publicEnv.supabaseAnonKey!;
 
     // Create server client
     const supabase = createServerClient(

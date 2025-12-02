@@ -41,6 +41,9 @@
     "**/supabase/functions/**",
     "sell-rush-company/**",
     "sell-rush-influencer/**",
-    "sell-rush-lp/**"
+    "sell-rush-lp/**",
+    "**/__tests__/**",
+    "**/*.test.ts",
+    "**/*.test.tsx"
   ]
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import Stripe from "stripe";
+import { validateWebhookEnv, publicEnv, serverEnv } from "@/lib/env";
 
 /**
  * Stripe Webhook Handler
@@ -24,17 +25,23 @@ import Stripe from "stripe";
  */
 export async function POST(request: NextRequest) {
   try {
-    // Stripe 初期化
-    const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-    if (!stripeSecretKey || !webhookSecret) {
-      console.error("Stripe configuration missing");
+    // 環境変数のバリデーション
+    const envValidation = validateWebhookEnv();
+    if (!envValidation.isValid) {
+      console.error("Missing required environment variables:", envValidation.missing);
       return NextResponse.json(
-        { error: "Stripe configuration missing" },
+        { 
+          error: "Configuration error",
+          missing: envValidation.missing,
+          message: "Please configure the required environment variables in Vercel settings."
+        },
         { status: 500 }
       );
     }
+
+    // Stripe 初期化
+    const stripeSecretKey = serverEnv.stripeSecretKey!;
+    const webhookSecret = serverEnv.stripeWebhookSecret!;
 
     const stripe = new Stripe(stripeSecretKey, {
       apiVersion: "2025-11-17.clover" as const,
@@ -64,16 +71,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Supabase 初期化
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      console.error("Supabase configuration missing");
-      return NextResponse.json(
-        { error: "Supabase configuration missing" },
-        { status: 500 }
-      );
-    }
+    // ⚠️ 重要: Webhook では Service Role Key が必須です
+    // Service Role Key を使用することで、RLS (Row Level Security) をバイパスし、
+    // 任意のテーブルにアクセスできます。Anon Key では RLS の制約により
+    // Webhook 処理に必要な操作ができない可能性があります。
+    // 環境変数のバリデーションは既に上で完了しているため、ここでは安全に使用できます。
+    const supabaseUrl = publicEnv.supabaseUrl!;
+    const supabaseServiceKey = serverEnv.supabaseServiceRoleKey!;
 
     // Service Role Key を使用して RLS をバイパス
     const supabase = createServerClient(
