@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { validateStripeCheckoutEnv, serverEnv } from "@/lib/env";
 import { createApiSupabaseClient } from "@/lib/supabase-server";
+import {
+  configurationError,
+  validationError,
+  notFoundError,
+  internalServerError,
+} from "@/lib/api-error";
 
 /**
  * Stripe Checkout Session 作成 API
@@ -18,14 +24,9 @@ export async function POST(request: NextRequest) {
     // 環境変数のバリデーション
     const envValidation = validateStripeCheckoutEnv();
     if (!envValidation.isValid) {
-      console.error("Missing required environment variables:", envValidation.missing);
-      return NextResponse.json(
-        { 
-          error: "Configuration error",
-          missing: envValidation.missing,
-          message: "Please configure the required environment variables in Vercel settings."
-        },
-        { status: 500 }
+      return configurationError(
+        "Please configure the required environment variables in Vercel settings.",
+        envValidation.missing
       );
     }
 
@@ -43,10 +44,7 @@ export async function POST(request: NextRequest) {
     const { product_id, affiliate_code } = body;
 
     if (!product_id) {
-      return NextResponse.json(
-        { error: "product_id is required" },
-        { status: 400 }
-      );
+      return validationError("product_id is required");
     }
 
     // 1. 商品を取得・検証
@@ -58,10 +56,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (productError || !product) {
-      return NextResponse.json(
-        { error: "Product not found or not active" },
-        { status: 404 }
-      );
+      return notFoundError("Product not found or not active");
     }
 
     // 2. 紹介リンクを取得・検証（affiliate_code がある場合）
@@ -78,10 +73,7 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (linkError || !affiliateLink) {
-        return NextResponse.json(
-          { error: "Invalid affiliate link" },
-          { status: 400 }
-        );
+        return validationError("Invalid affiliate link");
       }
 
       affiliateLinkId = affiliateLink.id;
@@ -131,10 +123,8 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     );
   } catch (error: any) {
-    console.error("Checkout create error:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to create checkout session" },
-      { status: 500 }
+    return internalServerError(
+      error.message || "Failed to create checkout session"
     );
   }
 }

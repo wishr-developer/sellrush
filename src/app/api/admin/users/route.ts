@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateStripeCheckoutEnv } from "@/lib/env";
 import { createApiSupabaseClient, createAdminSupabaseClient } from "@/lib/supabase-server";
+import {
+  configurationError,
+  unauthorizedError,
+  forbiddenError,
+  internalServerError,
+} from "@/lib/api-error";
 
 /**
  * Admin Users API Route
@@ -14,12 +20,9 @@ export async function GET(request: NextRequest) {
     // 環境変数のバリデーション
     const envValidation = validateStripeCheckoutEnv();
     if (!envValidation.isValid) {
-      return NextResponse.json(
-        { 
-          error: "Configuration error",
-          missing: envValidation.missing,
-        },
-        { status: 500 }
+      return configurationError(
+        "Please configure the required environment variables.",
+        envValidation.missing
       );
     }
 
@@ -33,11 +36,11 @@ export async function GET(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (userError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return unauthorizedError();
     }
 
     if (user.user_metadata?.role !== "admin") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return forbiddenError();
     }
 
     // Fetch users using Admin API (service_role key)
@@ -50,14 +53,7 @@ export async function GET(request: NextRequest) {
     } = await adminClient.auth.admin.listUsers();
 
     if (listError) {
-      // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
-      if (process.env.NODE_ENV === "development") {
-        console.error("Admin listUsers error:", listError);
-      }
-      return NextResponse.json(
-        { error: "Failed to fetch users" },
-        { status: 500 }
-      );
+      return internalServerError("Failed to fetch users");
     }
 
     // Format users for display
@@ -70,14 +66,9 @@ export async function GET(request: NextRequest) {
     }));
 
     return NextResponse.json({ users: formattedUsers });
-  } catch (error) {
-    // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
-    if (process.env.NODE_ENV === "development") {
-      console.error("Admin users API error:", error);
-    }
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+  } catch (error: any) {
+    return internalServerError(
+      error.message || "Failed to fetch users"
     );
   }
 }

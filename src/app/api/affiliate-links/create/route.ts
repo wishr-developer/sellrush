@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateStripeCheckoutEnv } from "@/lib/env";
 import { createApiSupabaseClient } from "@/lib/supabase-server";
+import {
+  configurationError,
+  unauthorizedError,
+  forbiddenError,
+  validationError,
+  notFoundError,
+  internalServerError,
+} from "@/lib/api-error";
 
 /**
  * Affiliate Links Create API Route
@@ -11,12 +19,9 @@ export async function POST(request: NextRequest) {
     // 環境変数のバリデーション
     const envValidation = validateStripeCheckoutEnv();
     if (!envValidation.isValid) {
-      return NextResponse.json(
-        { 
-          error: "Configuration error",
-          missing: envValidation.missing,
-        },
-        { status: 500 }
+      return configurationError(
+        "Please configure the required environment variables.",
+        envValidation.missing
       );
     }
 
@@ -30,16 +35,13 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (userError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return unauthorizedError();
     }
 
     // Check role (creator or influencer only)
     const userRole = user.user_metadata?.role;
     if (userRole !== "creator" && userRole !== "influencer") {
-      return NextResponse.json(
-        { error: "Creator access required" },
-        { status: 403 }
-      );
+      return forbiddenError("Creator access required");
     }
 
     // Parse request body
@@ -47,10 +49,7 @@ export async function POST(request: NextRequest) {
     const { product_id } = body;
 
     if (!product_id) {
-      return NextResponse.json(
-        { error: "product_id is required" },
-        { status: 400 }
-      );
+      return validationError("product_id is required");
     }
 
     // 1. 商品が存在し、公開されているか確認
@@ -62,10 +61,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (productError || !product) {
-      return NextResponse.json(
-        { error: "Product not found or not active" },
-        { status: 404 }
-      );
+      return notFoundError("Product not found or not active");
     }
 
     // 2. 既存の紹介リンクを確認（重複防止）- status = 'active' のみ
@@ -121,10 +117,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (attempts >= maxAttempts) {
-      return NextResponse.json(
-        { error: "Failed to generate unique affiliate code" },
-        { status: 500 }
-      );
+      return internalServerError("Failed to generate unique affiliate code");
     }
 
     // 4. affiliate_links テーブルに挿入
@@ -140,14 +133,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (insertError) {
-      // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
-      if (process.env.NODE_ENV === "development") {
-        console.error("Affiliate link insert error:", insertError);
-      }
-      return NextResponse.json(
-        { error: "Failed to create affiliate link" },
-        { status: 500 }
-      );
+      return internalServerError("Failed to create affiliate link");
     }
 
     return NextResponse.json(
@@ -158,14 +144,9 @@ export async function POST(request: NextRequest) {
       },
       { status: 201 }
     );
-  } catch (error) {
-    // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
-    if (process.env.NODE_ENV === "development") {
-      console.error("Affiliate link create API error:", error);
-    }
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+  } catch (error: any) {
+    return internalServerError(
+      error.message || "Failed to create affiliate link"
     );
   }
 }

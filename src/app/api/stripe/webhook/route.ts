@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { validateWebhookEnv } from "@/lib/env";
 import { createAdminSupabaseClient } from "@/lib/supabase-server";
+import {
+  configurationError,
+  validationError,
+  internalServerError,
+} from "@/lib/api-error";
 
 /**
  * Stripe Webhook Handler
@@ -28,14 +33,9 @@ export async function POST(request: NextRequest) {
     // 環境変数のバリデーション
     const envValidation = validateWebhookEnv();
     if (!envValidation.isValid) {
-      console.error("Missing required environment variables:", envValidation.missing);
-      return NextResponse.json(
-        { 
-          error: "Configuration error",
-          missing: envValidation.missing,
-          message: "Please configure the required environment variables in Vercel settings."
-        },
-        { status: 500 }
+      return configurationError(
+        "Please configure the required environment variables in Vercel settings.",
+        envValidation.missing
       );
     }
 
@@ -52,10 +52,7 @@ export async function POST(request: NextRequest) {
     const signature = request.headers.get("stripe-signature");
 
     if (!signature) {
-      return NextResponse.json(
-        { error: "Missing stripe-signature header" },
-        { status: 400 }
-      );
+      return validationError("Missing stripe-signature header");
     }
 
     // 署名検証
@@ -63,10 +60,8 @@ export async function POST(request: NextRequest) {
     try {
       event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
     } catch (err: any) {
-      console.error("Webhook signature verification failed:", err.message);
-      return NextResponse.json(
-        { error: `Webhook signature verification failed: ${err.message}` },
-        { status: 400 }
+      return validationError(
+        `Webhook signature verification failed: ${err.message}`
       );
     }
 
@@ -84,11 +79,7 @@ export async function POST(request: NextRequest) {
       // metadata から情報を取得
       const metadata = session.metadata;
       if (!metadata) {
-        console.error("Missing metadata in checkout session");
-        return NextResponse.json(
-          { error: "Missing metadata" },
-          { status: 400 }
-        );
+        return validationError("Missing metadata in checkout session");
       }
 
       const productId = metadata.product_id;
@@ -101,11 +92,7 @@ export async function POST(request: NextRequest) {
       const creatorId = metadata.creator_id || null;
 
       if (!productId || !session.amount_total) {
-        console.error("Missing required fields in metadata");
-        return NextResponse.json(
-          { error: "Missing required fields" },
-          { status: 400 }
-        );
+        return validationError("Missing required fields in metadata");
       }
 
       // 注文金額（Stripe は最小単位で返すので、JPY の場合はそのまま使用）
@@ -130,12 +117,8 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (orderError) {
-        console.error("Order creation error:", orderError);
         // TODO: payment_logs テーブルを作成して、失敗時のログを記録する
-        return NextResponse.json(
-          { error: "Failed to create order" },
-          { status: 500 }
-        );
+        return internalServerError("Failed to create order");
       }
 
       // 2. payouts を自動生成
@@ -175,10 +158,8 @@ export async function POST(request: NextRequest) {
     console.log(`Unhandled event type: ${event.type}`);
     return NextResponse.json({ received: true }, { status: 200 });
   } catch (error: any) {
-    console.error("Webhook error:", error);
-    return NextResponse.json(
-      { error: error.message || "Webhook processing failed" },
-      { status: 500 }
+    return internalServerError(
+      error.message || "Webhook processing failed"
     );
   }
 }

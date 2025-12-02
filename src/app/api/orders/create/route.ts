@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createApiSupabaseClient } from "@/lib/supabase-server";
+import {
+  unauthorizedError,
+  rateLimitError,
+  validationError,
+  internalServerError,
+} from "@/lib/api-error";
 
 /**
  * Rate Limit Store (In-Memory)
@@ -66,10 +72,7 @@ export async function POST(request: NextRequest) {
   // 認証前にIPベースでチェック（認証失敗時も制限）
   const preAuthCheck = checkRateLimit(null, ip, "/api/orders/create", 10, 60 * 1000);
   if (!preAuthCheck.allowed) {
-    return NextResponse.json(
-      { error: "Too many requests. Please try again later." },
-      { status: 429 }
-    );
+    return rateLimitError("Too many requests. Please try again later.");
   }
 
   try {
@@ -83,7 +86,7 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (userError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return unauthorizedError();
     }
 
     // Rate Limit Check (認証後、user.id ベースで再チェック)
@@ -96,10 +99,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (!rateLimitCheck.allowed) {
-      return NextResponse.json(
-        { error: "Too many requests. Please try again later." },
-        { status: 429 }
-      );
+      return rateLimitError("Too many requests. Please try again later.");
     }
 
     // Parse request body
@@ -108,18 +108,12 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!product_id || !amount) {
-      return NextResponse.json(
-        { error: "product_id and amount are required" },
-        { status: 400 }
-      );
+      return validationError("product_id and amount are required");
     }
 
     // Validate amount is a positive number
     if (typeof amount !== "number" || amount <= 0) {
-      return NextResponse.json(
-        { error: "amount must be a positive number" },
-        { status: 400 }
-      );
+      return validationError("amount must be a positive number");
     }
 
     // affiliate_code から affiliate_link_id を取得
@@ -156,15 +150,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
-      // ユーザーには一般化されたメッセージを返す
-      if (process.env.NODE_ENV === "development") {
-        console.error("Order creation error:", error);
-      }
-      return NextResponse.json(
-        { error: "Failed to create order" },
-        { status: 500 }
-      );
+      return internalServerError("Failed to create order");
     }
 
     // 不正検知を実行（非同期、エラーは無視）
@@ -193,14 +179,9 @@ export async function POST(request: NextRequest) {
       },
       { status: 201 }
     );
-  } catch (error) {
-    // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
-    if (process.env.NODE_ENV === "development") {
-      console.error("Orders create API error:", error);
-    }
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+  } catch (error: any) {
+    return internalServerError(
+      error.message || "Failed to create order"
     );
   }
 }

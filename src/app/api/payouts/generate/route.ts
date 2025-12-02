@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createApiSupabaseClient } from "@/lib/supabase-server";
+import {
+  unauthorizedError,
+  forbiddenError,
+  internalServerError,
+} from "@/lib/api-error";
 
 /**
  * Payouts Generate API Route
@@ -18,15 +23,12 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (userError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return unauthorizedError();
     }
 
     const userRole = user.user_metadata?.role;
     if (userRole !== "admin") {
-      return NextResponse.json(
-        { error: "Admin access required" },
-        { status: 403 }
-      );
+      return forbiddenError("Admin access required");
     }
 
     // Parse request body (optional: order_id を指定して特定の order のみ生成)
@@ -47,11 +49,7 @@ export async function POST(request: NextRequest) {
     const { data: orders, error: ordersError } = await ordersQuery;
 
     if (ordersError) {
-      console.error("Orders fetch error:", ordersError);
-      return NextResponse.json(
-        { error: "Failed to fetch orders" },
-        { status: 500 }
-      );
+      return internalServerError("Failed to fetch orders");
     }
 
     if (!orders || orders.length === 0) {
@@ -140,14 +138,7 @@ export async function POST(request: NextRequest) {
       .select();
 
     if (insertError) {
-      // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
-      if (process.env.NODE_ENV === "development") {
-        console.error("Payouts insert error:", insertError);
-      }
-      return NextResponse.json(
-        { error: "Failed to create payouts" },
-        { status: 500 }
-      );
+      return internalServerError("Failed to create payouts");
     }
 
     return NextResponse.json(
@@ -159,14 +150,9 @@ export async function POST(request: NextRequest) {
       },
       { status: 201 }
     );
-  } catch (error) {
-    // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
-    if (process.env.NODE_ENV === "development") {
-      console.error("Payouts generate API error:", error);
-    }
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+  } catch (error: any) {
+    return internalServerError(
+      error.message || "Failed to generate payouts"
     );
   }
 }
