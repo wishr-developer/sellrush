@@ -6,6 +6,9 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { showSuccessToast, showErrorToast } from "@/components/ui/Toast";
 import { ListSkeleton } from "@/components/ui/LoadingSkeleton";
+import { useDropzone } from "react-dropzone";
+import { Upload, X, Image as ImageIcon } from "lucide-react";
+import Image from "next/image";
 import type { Product, User } from "@/types/dashboard";
 
 // Product型は @/types/dashboard からインポート
@@ -308,19 +311,149 @@ function ProductModal({
     stock: 0,
     status: product?.status || "active",
     company_name: product?.company_name || "",
-    image_url: "",
+    image_url: product?.image_url || "",
     creator_share_rate: product?.creator_share_rate || 0.25,
     platform_take_rate: product?.platform_take_rate || 0.15,
-    description: "",
+    description: product?.description || "",
     category: "",
   });
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(
+    product?.image_url || null
+  );
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+
+  // 商品編集時に既存の画像URLを設定
+  useEffect(() => {
+    if (product?.image_url) {
+      setUploadedImageUrl(product.image_url);
+      setFormData((prev) => ({ ...prev, image_url: product.image_url || "" }));
+    }
+  }, [product]);
+
+  // フォームバリデーション
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!formData.name.trim()) {
+      errors.name = "商品名は必須です";
+    } else if (formData.name.length > 100) {
+      errors.name = "商品名は100文字以内で入力してください";
+    }
+
+    if (formData.price <= 0) {
+      errors.price = "価格は1円以上で入力してください";
+    } else if (formData.price > 10000000) {
+      errors.price = "価格は10,000,000円以下で入力してください";
+    }
+
+    if (formData.creator_share_rate < 0 || formData.creator_share_rate > 1) {
+      errors.creator_share_rate = "クリエイター分配率は0〜1の間で入力してください";
+    }
+
+    if (formData.platform_take_rate < 0 || formData.platform_take_rate > 1) {
+      errors.platform_take_rate = "プラットフォーム分配率は0〜1の間で入力してください";
+    }
+
+    const totalRate = formData.creator_share_rate + formData.platform_take_rate;
+    if (totalRate > 1) {
+      errors.creator_share_rate = "クリエイター分配率とプラットフォーム分配率の合計は1以下である必要があります";
+      errors.platform_take_rate = "クリエイター分配率とプラットフォーム分配率の合計は1以下である必要があります";
+    }
+
+    if (formData.image_url && !isValidUrl(formData.image_url)) {
+      errors.image_url = "有効なURLを入力してください";
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const isValidUrl = (url: string): boolean => {
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // 画像アップロード処理
+  const handleImageUpload = async (file: File) => {
+    setIsUploading(true);
+    setError(null);
+
+    try {
+      // ファイルサイズチェック（5MB以下）
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error("画像サイズは5MB以下にしてください");
+      }
+
+      // ファイル形式チェック
+      if (!file.type.startsWith("image/")) {
+        throw new Error("画像ファイルを選択してください");
+      }
+
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${userId}-${Date.now()}.${fileExt}`;
+      const filePath = `product-images/${fileName}`;
+
+      // Supabase Storageにアップロード
+      const { error: uploadError } = await supabase.storage
+        .from("product-images")
+        .upload(filePath, file, {
+          contentType: file.type,
+          upsert: false,
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // 公開URLを取得
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("product-images").getPublicUrl(filePath);
+
+      setUploadedImageUrl(publicUrl);
+      setFormData({ ...formData, image_url: publicUrl });
+      showSuccessToast("画像をアップロードしました");
+    } catch (err: any) {
+      const errorMessage = err.message || "画像のアップロードに失敗しました";
+      setError(errorMessage);
+      showErrorToast(errorMessage);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop: (acceptedFiles) => {
+      if (acceptedFiles.length > 0) {
+        handleImageUpload(acceptedFiles[0]);
+      }
+    },
+    accept: {
+      "image/*": [".jpeg", ".jpg", ".png", ".webp"],
+    },
+    maxFiles: 1,
+    maxSize: 5 * 1024 * 1024, // 5MB
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSaving(true);
     setError(null);
+    setValidationErrors({});
+
+    // バリデーション
+    if (!validateForm()) {
+      showErrorToast("入力内容を確認してください");
+      return;
+    }
+
+    setIsSaving(true);
 
     try {
       if (!userId) {
@@ -335,17 +468,17 @@ function ProductModal({
         .single();
 
       const productData = {
-        name: formData.name,
-        price: formData.price,
-        stock: formData.stock,
+        name: formData.name.trim(),
+        price: Math.round(formData.price), // 整数に丸める
+        stock: formData.stock || 0,
         status: formData.status,
-        company_name: company?.company_name || formData.company_name,
-        image_url: formData.image_url || null,
+        company_name: company?.company_name || formData.company_name || null,
+        image_url: uploadedImageUrl || formData.image_url || null,
         owner_id: userId,
-        creator_share_rate: formData.creator_share_rate,
-        platform_take_rate: formData.platform_take_rate,
-        category: formData.category || null,
-        description: formData.description || null,
+        creator_share_rate: Math.round(formData.creator_share_rate * 100) / 100, // 小数点2桁に丸める
+        platform_take_rate: Math.round(formData.platform_take_rate * 100) / 100,
+        category: formData.category.trim() || null,
+        description: formData.description.trim() || null,
       };
 
       if (product) {
@@ -402,10 +535,23 @@ function ProductModal({
               <input
                 type="text"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                onChange={(e) => {
+                  setFormData({ ...formData, name: e.target.value });
+                  if (validationErrors.name) {
+                    setValidationErrors({ ...validationErrors, name: "" });
+                  }
+                }}
+                className={`w-full rounded-lg border px-3 py-2 text-sm text-white ${
+                  validationErrors.name
+                    ? "border-red-500 bg-slate-900"
+                    : "border-slate-700 bg-slate-900"
+                }`}
                 required
+                maxLength={100}
               />
+              {validationErrors.name && (
+                <p className="mt-1 text-xs text-red-400">{validationErrors.name}</p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -416,11 +562,24 @@ function ProductModal({
                 <input
                   type="number"
                   value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                  onChange={(e) => {
+                    setFormData({ ...formData, price: Number(e.target.value) });
+                    if (validationErrors.price) {
+                      setValidationErrors({ ...validationErrors, price: "" });
+                    }
+                  }}
+                  className={`w-full rounded-lg border px-3 py-2 text-sm text-white ${
+                    validationErrors.price
+                      ? "border-red-500 bg-slate-900"
+                      : "border-slate-700 bg-slate-900"
+                  }`}
                   required
                   min="1"
+                  max="10000000"
                 />
+                {validationErrors.price && (
+                  <p className="mt-1 text-xs text-red-400">{validationErrors.price}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2 text-slate-200">
@@ -438,15 +597,89 @@ function ProductModal({
 
             <div>
               <label className="block text-sm font-medium mb-2 text-slate-200">
-                画像URL
+                商品画像
               </label>
-              <input
-                type="url"
-                value={formData.image_url}
-                onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
-                placeholder="https://..."
-              />
+              
+              {/* 画像プレビュー */}
+              {uploadedImageUrl && (
+                <div className="relative mb-3 w-full h-48 rounded-lg overflow-hidden border border-slate-700 bg-slate-900">
+                  <Image
+                    src={uploadedImageUrl}
+                    alt="商品画像"
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 768px) 100vw, 50vw"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUploadedImageUrl(null);
+                      setFormData({ ...formData, image_url: "" });
+                    }}
+                    className="absolute top-2 right-2 p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors"
+                  >
+                    <X className="w-4 h-4 text-white" />
+                  </button>
+                </div>
+              )}
+
+              {/* 画像アップロードエリア */}
+              {!uploadedImageUrl && (
+                <div
+                  {...getRootProps()}
+                  className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                    isDragActive
+                      ? "border-emerald-500 bg-emerald-500/10"
+                      : "border-slate-700 bg-slate-900/50 hover:border-slate-600"
+                  } ${isUploading ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  <input {...getInputProps()} disabled={isUploading} />
+                  {isUploading ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500" />
+                      <p className="text-sm text-slate-400">アップロード中...</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <Upload className="w-8 h-8 text-slate-400" />
+                      <p className="text-sm text-slate-300">
+                        {isDragActive
+                          ? "ここに画像をドロップ"
+                          : "画像をドラッグ&ドロップまたはクリックして選択"}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        JPEG, PNG, WebP (最大5MB)
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* URL入力（代替手段） */}
+              {!uploadedImageUrl && (
+                <div className="mt-3">
+                  <p className="text-xs text-slate-400 mb-2">または画像URLを入力</p>
+                  <input
+                    type="url"
+                    value={formData.image_url}
+                    onChange={(e) => {
+                      setFormData({ ...formData, image_url: e.target.value });
+                      if (validationErrors.image_url) {
+                        setValidationErrors({ ...validationErrors, image_url: "" });
+                      }
+                    }}
+                    className={`w-full rounded-lg border px-3 py-2 text-sm text-white ${
+                      validationErrors.image_url
+                        ? "border-red-500 bg-slate-900"
+                        : "border-slate-700 bg-slate-900"
+                    }`}
+                    placeholder="https://..."
+                  />
+                  {validationErrors.image_url && (
+                    <p className="mt-1 text-xs text-red-400">{validationErrors.image_url}</p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -460,12 +693,26 @@ function ProductModal({
                   min="0"
                   max="1"
                   value={formData.creator_share_rate}
-                  onChange={(e) => setFormData({ ...formData, creator_share_rate: Number(e.target.value) })}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                  onChange={(e) => {
+                    setFormData({ ...formData, creator_share_rate: Number(e.target.value) });
+                    if (validationErrors.creator_share_rate) {
+                      setValidationErrors({ ...validationErrors, creator_share_rate: "" });
+                    }
+                  }}
+                  className={`w-full rounded-lg border px-3 py-2 text-sm text-white ${
+                    validationErrors.creator_share_rate
+                      ? "border-red-500 bg-slate-900"
+                      : "border-slate-700 bg-slate-900"
+                  }`}
                 />
                 <p className="text-xs text-slate-500 mt-1">
                   デフォルト: 0.25 (25%)
                 </p>
+                {validationErrors.creator_share_rate && (
+                  <p className="mt-1 text-xs text-red-400">
+                    {validationErrors.creator_share_rate}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2 text-slate-200">
@@ -477,13 +724,68 @@ function ProductModal({
                   min="0"
                   max="1"
                   value={formData.platform_take_rate}
-                  onChange={(e) => setFormData({ ...formData, platform_take_rate: Number(e.target.value) })}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                  onChange={(e) => {
+                    setFormData({ ...formData, platform_take_rate: Number(e.target.value) });
+                    if (validationErrors.platform_take_rate) {
+                      setValidationErrors({ ...validationErrors, platform_take_rate: "" });
+                    }
+                  }}
+                  className={`w-full rounded-lg border px-3 py-2 text-sm text-white ${
+                    validationErrors.platform_take_rate
+                      ? "border-red-500 bg-slate-900"
+                      : "border-slate-700 bg-slate-900"
+                  }`}
                 />
                 <p className="text-xs text-slate-500 mt-1">
                   デフォルト: 0.15 (15%)
                 </p>
+                {validationErrors.platform_take_rate && (
+                  <p className="mt-1 text-xs text-red-400">
+                    {validationErrors.platform_take_rate}
+                  </p>
+                )}
               </div>
+            </div>
+            
+            {/* 分配率の合計警告 */}
+            {formData.creator_share_rate + formData.platform_take_rate > 1 && (
+              <div className="rounded-lg bg-amber-500/10 border border-amber-500/40 p-3">
+                <p className="text-sm text-amber-400">
+                  警告: クリエイター分配率とプラットフォーム分配率の合計が100%を超えています。
+                  ブランド取り分が負の値になる可能性があります。
+                </p>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium mb-2 text-slate-200">
+                商品説明
+              </label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                rows={4}
+                placeholder="商品の詳細説明を入力してください"
+                maxLength={1000}
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                {formData.description.length}/1000文字
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2 text-slate-200">
+                カテゴリー
+              </label>
+              <input
+                type="text"
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                placeholder="例: ファッション、コスメ、食品など"
+                maxLength={50}
+              />
             </div>
 
             <div>
@@ -528,4 +830,5 @@ function ProductModal({
     </div>
   );
 }
+
 
