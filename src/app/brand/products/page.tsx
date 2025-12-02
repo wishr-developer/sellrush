@@ -482,7 +482,8 @@ function ProductModal({
       };
 
       if (product) {
-        // 更新
+        // 更新: 直接Supabaseを使用（更新API Routeは将来実装）
+        // TODO: Phase 6 で /api/brand/products/[id] エンドポイントを実装
         const { error: updateError } = await supabase
           .from("products")
           .update(productData)
@@ -491,12 +492,21 @@ function ProductModal({
         if (updateError) throw updateError;
         showSuccessToast("商品を更新しました");
       } else {
-        // 新規作成
-        const { error: insertError } = await supabase
-          .from("products")
-          .insert(productData);
+        // 新規作成: API Routeを使用
+        const response = await fetch("/api/brand/products", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(productData),
+        });
 
-        if (insertError) throw insertError;
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || result.message || "商品の登録に失敗しました");
+        }
+
         showSuccessToast("商品を登録しました");
       }
 
