@@ -44,6 +44,9 @@ export const metadata: Metadata = {
     description:
       "インフルエンサーとブランドのための「販売バトル型」ソーシャルセリング・プラットフォーム SELL RUSH のシネマティックLP。",
   },
+  verification: {
+    google: "HFQX07XJ6AWIutOvFEhHI68n6ait4ei8nchO3fFK4qY",
+  },
 };
 
 export default function RootLayout({
