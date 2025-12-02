@@ -61,6 +61,15 @@ import {
   getBattleRank,
   getEstimatedCommissionDescription,
 } from "@/lib/dashboard-calculations";
+import {
+  shouldUseMockData,
+  getMockSalesStats,
+  getMockOrders,
+  getMockPayoutStats,
+  getMockBattles,
+  getMockDailyData,
+  getDataWithFallback,
+} from "@/lib/mock-data";
 
 // 型定義は @/types/dashboard からインポート
 
