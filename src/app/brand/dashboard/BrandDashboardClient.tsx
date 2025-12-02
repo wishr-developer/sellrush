@@ -430,10 +430,32 @@ export default function BrandDashboardClient() {
           </button>
         </div>
 
-        {/* 上段: KPI カード */}
+        {/* 上段: KPI カード + トーナメント概要 */}
         {/* データソース: orders (fetchDashboardData で取得) */}
         {/* 計算ロジック: calculateBrandKPIData() を使用 */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {/* トーナメント概要（新規追加） */}
+          {user?.id && myProducts.length > 0 && (
+            <TournamentOverviewCard
+              brandId={user.id}
+              productIds={myProducts.map((p) => p.id)}
+              isLoading={loadingState.brandKpis}
+              error={errorState.brandKpis}
+              onRetry={user?.id ? async () => {
+                // 商品データを再取得
+                try {
+                  const { data: productsData } = await supabase
+                    .from("products")
+                    .select("id, name")
+                    .eq("owner_id", user.id);
+                  setMyProducts(productsData || []);
+                } catch (err) {
+                  // エラーは無視
+                }
+              } : undefined}
+            />
+          )}
+
           {/* 総売上カード */}
           <DashboardCard
             title="総売上"
