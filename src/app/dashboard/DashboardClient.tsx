@@ -36,42 +36,18 @@ import {
 import MobileTabBar from "@/components/MobileTabBar";
 import RankingBoard from "@/components/RankingBoard";
 import { PasswordSetupModal } from "@/components/auth/PasswordSetupModal";
+import { AffiliateLinkModal } from "@/components/dashboard/AffiliateLinkModal";
+import type {
+  User,
+  ProductSummary,
+  OrderRow,
+  SalesStats,
+  PayoutStats,
+  BattleStatus,
+  DailyPoint,
+} from "@/types/dashboard";
 
-type SalesStats = {
-  totalSales: number;
-  totalRevenue: number;
-  estimatedCommission: number;
-};
-
-type PayoutStats = {
-  totalPending: number;
-  totalPaid: number;
-  pendingCount: number;
-  paidCount: number;
-};
-
-type BattleStatus = {
-  id: string;
-  category: string;
-  title: string;
-  rank: number;
-  participants: number;
-  gmv: number;
-};
-
-type OrderRow = {
-  id: string;
-  amount: number | null;
-  created_at: string | null;
-  status?: string | null;
-  product_id?: string | null;
-};
-
-type DailyPoint = {
-  date: string;
-  gmv: number;
-  orders: number;
-};
+// 型定義は @/types/dashboard からインポート
 
 /**
  * 司令室 / コマンドセンター（クライアント側コンポーネント）
@@ -80,9 +56,10 @@ type DailyPoint = {
 export default function DashboardClient() {
   const router = useRouter();
   const { language } = useLanguage();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showPasswordSetup, setShowPasswordSetup] = useState(false);
+  const [showAffiliateLinkModal, setShowAffiliateLinkModal] = useState(false);
   const [salesStats, setSalesStats] = useState<SalesStats>({
     totalSales: 0,
     totalRevenue: 0,
@@ -98,7 +75,7 @@ export default function DashboardClient() {
   const [battles, setBattles] = useState<BattleStatus[]>([]);
   const [myRank, setMyRank] = useState<number | null>(null);
   const [showCreateOrderModal, setShowCreateOrderModal] = useState(false);
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<ProductSummary[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [orderAmount, setOrderAmount] = useState<number>(0);
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
@@ -824,7 +801,7 @@ export default function DashboardClient() {
           ) {
             return prev; // 変更がない場合は前回の state を返す
           }
-          return data;
+          return data as ProductSummary[];
         });
         // 最初の商品を選択（変更がある場合のみ）
         if (data.length > 0) {
@@ -1010,7 +987,7 @@ export default function DashboardClient() {
         {/* 主CTA：紹介リンクを発行する */}
         <div className="mb-6">
           <button
-            onClick={() => router.push("/market")}
+            onClick={() => setShowAffiliateLinkModal(true)}
             className="w-full md:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl bg-white text-black text-base font-semibold tracking-wide shadow-[0_18px_40px_rgba(0,0,0,0.9)] transition-all hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-[0_20px_50px_rgba(0,0,0,0.95)]"
           >
             <Link2 className="w-5 h-5" />
@@ -1387,6 +1364,19 @@ export default function DashboardClient() {
           }}
         />
       )}
+
+      {/* Affiliate Link Modal */}
+      <AffiliateLinkModal
+        isOpen={showAffiliateLinkModal}
+        onClose={() => setShowAffiliateLinkModal(false)}
+        onSuccess={(affiliateCode, productId) => {
+          // 紹介リンク生成成功時の処理
+          // 必要に応じてデータを再取得
+          if (user?.id) {
+            fetchSalesData(user.id);
+          }
+        }}
+      />
 
       {/* Create Order Modal */}
       {showCreateOrderModal && (
