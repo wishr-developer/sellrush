@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import Stripe from "stripe";
-import { validateStripeCheckoutEnv, publicEnv, serverEnv } from "@/lib/env";
+import { validateStripeCheckoutEnv, serverEnv } from "@/lib/env";
+import { createApiSupabaseClient } from "@/lib/supabase-server";
 
 /**
  * Stripe Checkout Session 作成 API
@@ -36,22 +36,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Supabase 初期化
-    const supabaseUrl = publicEnv.supabaseUrl!;
-    const supabaseAnonKey = publicEnv.supabaseAnonKey!;
-
-    const supabase = createServerClient(
-      supabaseUrl,
-      supabaseAnonKey,
-      {
-        cookies: {
-          get(name: string) {
-            return request.cookies.get(name)?.value;
-          },
-          set() {},
-          remove() {},
-        },
-      }
-    );
+    const supabase = createApiSupabaseClient(request);
 
     // リクエストボディを取得
     const body = await request.json();

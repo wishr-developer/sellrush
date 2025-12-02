@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { createServerClient } from "@supabase/ssr";
-import { publicEnv, serverEnv } from "@/lib/env";
+import { createApiSupabaseClient, createAdminSupabaseClient } from "@/lib/supabase-server";
 
 /**
  * Rankings API Route
@@ -11,43 +9,8 @@ import { publicEnv, serverEnv } from "@/lib/env";
  */
 export async function GET(request: NextRequest) {
   try {
-    // 環境変数の取得
-    const supabaseUrl = publicEnv.supabaseUrl;
-    const supabaseAnonKey = publicEnv.supabaseAnonKey;
-    const supabaseServiceKey = serverEnv.supabaseServiceRoleKey;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return NextResponse.json(
-        { error: "Missing Supabase configuration" },
-        { status: 500 }
-      );
-    }
-
-    if (!supabaseServiceKey) {
-      return NextResponse.json(
-        { error: "Missing Service Role Key (required for rankings)" },
-        { status: 500 }
-      );
-    }
-
     // 認証チェック用のクライアント
-    const supabase = createServerClient(
-      supabaseUrl,
-      supabaseAnonKey,
-      {
-        cookies: {
-          get(name: string) {
-            return request.cookies.get(name)?.value;
-          },
-          set() {
-            // Not needed for GET requests
-          },
-          remove() {
-            // Not needed for GET requests
-          },
-        },
-      }
-    );
+    const supabase = createApiSupabaseClient(request);
 
     // Check if user is authenticated
     const {
@@ -60,12 +23,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Service Role Keyを使用して全注文を取得（RLSをバイパス）
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
+    const supabaseAdmin = createAdminSupabaseClient();
 
     // 完了済み注文を取得
     const { data: orders, error: ordersError } = await supabaseAdmin

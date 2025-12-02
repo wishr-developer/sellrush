@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import Stripe from "stripe";
-import { validateWebhookEnv, publicEnv, serverEnv } from "@/lib/env";
+import { validateWebhookEnv } from "@/lib/env";
+import { createAdminSupabaseClient } from "@/lib/supabase-server";
 
 /**
  * Stripe Webhook Handler
@@ -40,8 +40,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Stripe 初期化
-    const stripeSecretKey = serverEnv.stripeSecretKey!;
-    const webhookSecret = serverEnv.stripeWebhookSecret!;
+    const stripeSecretKey = process.env.STRIPE_SECRET_KEY!;
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
     const stripe = new Stripe(stripeSecretKey, {
       apiVersion: "2025-11-17.clover" as const,
@@ -70,27 +70,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Supabase 初期化
+    // Supabase 初期化（Service Role Key を使用して RLS をバイパス）
     // ⚠️ 重要: Webhook では Service Role Key が必須です
     // Service Role Key を使用することで、RLS (Row Level Security) をバイパスし、
     // 任意のテーブルにアクセスできます。Anon Key では RLS の制約により
     // Webhook 処理に必要な操作ができない可能性があります。
-    // 環境変数のバリデーションは既に上で完了しているため、ここでは安全に使用できます。
-    const supabaseUrl = publicEnv.supabaseUrl!;
-    const supabaseServiceKey = serverEnv.supabaseServiceRoleKey!;
-
-    // Service Role Key を使用して RLS をバイパス
-    const supabase = createServerClient(
-      supabaseUrl,
-      supabaseServiceKey,
-      {
-        cookies: {
-          get() { return undefined; },
-          set() {},
-          remove() {},
-        },
-      }
-    );
+    const supabase = createAdminSupabaseClient();
 
     // checkout.session.completed イベントを処理
     if (event.type === "checkout.session.completed") {

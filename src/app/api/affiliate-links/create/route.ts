@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { validateStripeCheckoutEnv, publicEnv } from "@/lib/env";
+import { validateStripeCheckoutEnv } from "@/lib/env";
+import { createApiSupabaseClient } from "@/lib/supabase-server";
 
 /**
  * Affiliate Links Create API Route
@@ -20,27 +20,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabaseUrl = publicEnv.supabaseUrl!;
-    const supabaseAnonKey = publicEnv.supabaseAnonKey!;
-
     // Create server client
-    const supabase = createServerClient(
-      supabaseUrl,
-      supabaseAnonKey,
-      {
-        cookies: {
-          get(name: string) {
-            return request.cookies.get(name)?.value;
-          },
-          set() {
-            // Not needed for POST requests
-          },
-          remove() {
-            // Not needed for POST requests
-          },
-        },
-      }
-    );
+    const supabase = createApiSupabaseClient(request);
 
     // Check authentication
     const {

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { createServerClient } from "@supabase/ssr";
-import { validateStripeCheckoutEnv, publicEnv, serverEnv } from "@/lib/env";
+import { validateStripeCheckoutEnv } from "@/lib/env";
+import { createApiSupabaseClient, createAdminSupabaseClient } from "@/lib/supabase-server";
 
 /**
  * Admin Users API Route
@@ -24,28 +23,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const supabaseUrl = publicEnv.supabaseUrl!;
-    const supabaseAnonKey = publicEnv.supabaseAnonKey!;
-    const supabaseServiceRoleKey = serverEnv.supabaseServiceRoleKey;
-
     // Create server client to check admin role
-    const supabase = createServerClient(
-      supabaseUrl,
-      supabaseAnonKey,
-      {
-        cookies: {
-          get(name: string) {
-            return request.cookies.get(name)?.value;
-          },
-          set(name: string, value: string, options: any) {
-            // Not needed for GET requests
-          },
-          remove(name: string, options: any) {
-            // Not needed for GET requests
-          },
-        },
-      }
-    );
+    const supabase = createApiSupabaseClient(request);
 
     // Check if user is admin
     const {
@@ -63,28 +42,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch users using Admin API (service_role key)
     // ⚠️ 重要: Admin API を使用するには Service Role Key が必須です
-    if (!supabaseServiceRoleKey) {
-      // 本番環境では警告をログに出力しない（セキュリティ）
-      if (process.env.NODE_ENV === "development") {
-        console.warn(
-          "SUPABASE_SERVICE_ROLE_KEY not set. Cannot fetch user list."
-        );
-      }
-      return NextResponse.json(
-        { 
-          error: "Service role key not configured",
-          message: "SUPABASE_SERVICE_ROLE_KEY is required for admin operations. Please configure it in Vercel settings."
-        },
-        { status: 500 }
-      );
-    }
-
-    const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
+    const adminClient = createAdminSupabaseClient();
 
     const {
       data: { users },
