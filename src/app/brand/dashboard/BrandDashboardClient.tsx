@@ -56,6 +56,7 @@ export default function BrandDashboardClient() {
   const [creatorPerformance, setCreatorPerformance] = useState<
     CreatorPerformance[]
   >([]);
+  const [myProducts, setMyProducts] = useState<Array<{ id: string; name: string }>>([]);
 
   // 個別のローディング/エラー状態管理（Phase 4パターン）
   const [loadingState, setLoadingState] = useState<LoadingState>(initialLoadingState);
@@ -85,7 +86,7 @@ export default function BrandDashboardClient() {
     try {
       // 1. 自分の商品IDを取得
       // RLS前提: owner_id = auth.uid() の商品のみ取得可能
-      const { data: myProducts, error: productsError } = await supabase
+      const { data: myProductsData, error: productsError } = await supabase
         .from("products")
         .select("id, name")
         .eq("owner_id", brandId);
@@ -99,6 +100,11 @@ export default function BrandDashboardClient() {
         showErrorToast("商品データの取得に失敗しました");
         return;
       }
+
+      // 商品リストを state に保存（TournamentOverviewCard で使用）
+      setMyProducts(myProductsData || []);
+
+      const myProducts = myProductsData || [];
 
       if (!myProducts || myProducts.length === 0) {
         // 商品がない場合もエラーにしない
