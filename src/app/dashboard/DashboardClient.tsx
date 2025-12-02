@@ -62,6 +62,7 @@ import {
   getBattleRank,
   getEstimatedCommissionDescription,
 } from "@/lib/dashboard-calculations";
+import { calculateRevenueShareFromProduct } from "@/lib/revenue-share";
 import {
   shouldUseMockData,
   getMockSalesStats,
@@ -426,11 +427,17 @@ export default function DashboardClient() {
       const productIds = [...new Set(data?.map((o) => o.product_id).filter(Boolean) || [])];
       const { data: products } = await supabase
         .from("products")
-        .select("id, creator_share_rate")
+        .select("id, creator_share_rate, platform_take_rate")
         .in("id", productIds);
 
-      const productRateMap = new Map(
-        (products || []).map((p) => [p.id, p.creator_share_rate || 0.25])
+      const productMap = new Map(
+        (products || []).map((p) => [
+          p.id,
+          {
+            creator_share_rate: p.creator_share_rate,
+            platform_take_rate: p.platform_take_rate,
+          },
+        ])
       );
 
       if (data && data.length > 0) {
@@ -439,10 +446,15 @@ export default function DashboardClient() {
           return sum + (order.amount || 0);
         }, 0);
         
-        // 商品ごとの分配率で報酬を計算
+        // 商品ごとの分配率で報酬を計算（統一関数を使用）
         const estimatedCommission = data.reduce((sum, order) => {
-          const rate = productRateMap.get(order.product_id) || 0.25;
-          return sum + Math.floor((order.amount || 0) * rate);
+          const product = productMap.get(order.product_id);
+          const revenueShare = calculateRevenueShareFromProduct(
+            order.amount || 0,
+            product?.creator_share_rate,
+            product?.platform_take_rate
+          );
+          return sum + revenueShare.creatorAmount;
         }, 0);
 
         // 注文データを保持

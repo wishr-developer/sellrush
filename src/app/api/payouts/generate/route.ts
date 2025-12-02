@@ -5,6 +5,7 @@ import {
   forbiddenError,
   internalServerError,
 } from "@/lib/api-error";
+import { calculateRevenueShareFromProduct } from "@/lib/revenue-share";
 
 /**
  * Payouts Generate API Route
@@ -106,6 +107,7 @@ export async function POST(request: NextRequest) {
     );
 
     // 5. payouts を生成（商品ごとの分配率を使用）
+    // Revenue Share 計算ロジックを統一関数を使用
     const payoutsToInsert = ordersToProcess.map((order) => {
       const grossAmount = order.amount || 0;
       const product = productMap.get(order.product_id);
@@ -114,19 +116,21 @@ export async function POST(request: NextRequest) {
       const creatorShareRate = product?.creator_share_rate || 0.25;
       const platformTakeRate = product?.platform_take_rate || 0.15;
       
-      // 分配額を計算
-      const creatorAmount = Math.floor(grossAmount * creatorShareRate);
-      const platformAmount = Math.floor(grossAmount * platformTakeRate);
-      const brandAmount = grossAmount - creatorAmount - platformAmount; // 端数調整
+      // 統一関数で分配額を計算
+      const revenueShare = calculateRevenueShareFromProduct(
+        grossAmount,
+        creatorShareRate,
+        platformTakeRate
+      );
 
       return {
         order_id: order.id,
         creator_id: order.creator_id,
         brand_id: product?.owner_id || null,
         gross_amount: grossAmount,
-        creator_amount: creatorAmount,
-        platform_amount: platformAmount,
-        brand_amount: brandAmount,
+        creator_amount: revenueShare.creatorAmount,
+        platform_amount: revenueShare.platformAmount,
+        brand_amount: revenueShare.brandAmount,
         status: "pending",
       };
     });

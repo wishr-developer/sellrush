@@ -7,6 +7,7 @@ import {
   validationError,
   internalServerError,
 } from "@/lib/api-error";
+import { calculateRevenueShareFromProduct } from "@/lib/revenue-share";
 
 /**
  * Stripe Webhook Handler
@@ -122,11 +123,14 @@ export async function POST(request: NextRequest) {
       }
 
       // 2. payouts を自動生成
+      // Revenue Share 計算ロジックを統一関数を使用
       if (order) {
         const grossAmount = amount;
-        const creatorAmount = Math.floor(grossAmount * creatorShareRate);
-        const platformAmount = Math.floor(grossAmount * platformTakeRate);
-        const brandAmount = grossAmount - creatorAmount - platformAmount;
+        const revenueShare = calculateRevenueShareFromProduct(
+          grossAmount,
+          creatorShareRate,
+          platformTakeRate
+        );
 
         const { error: payoutError } = await supabase
           .from("payouts")
@@ -135,9 +139,9 @@ export async function POST(request: NextRequest) {
             creator_id: creatorId,
             brand_id: ownerId,
             gross_amount: grossAmount,
-            creator_amount: creatorAmount,
-            platform_amount: platformAmount,
-            brand_amount: brandAmount,
+            creator_amount: revenueShare.creatorAmount,
+            platform_amount: revenueShare.platformAmount,
+            brand_amount: revenueShare.brandAmount,
             status: "pending",
           });
 
