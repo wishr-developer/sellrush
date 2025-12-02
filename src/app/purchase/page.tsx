@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * ⚠️ 重要: useSearchParams() を使用するため、Suspense boundary でラップする必要があります
+ * Next.js 16 App Router では、useSearchParams() を使うクライアントコンポーネントは
+ * 必ず Suspense でラップしないとビルド時にエラーが発生します。
+ */
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";

@@ -133,3 +133,32 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 - ロールベースアクセス制御（RBAC）
 - 運営管理画面はMFA（多要素認証）必須
 - 各ポートで共通のSupabase DB・Authを使用
+
+## Vercel デプロイ設定
+
+### 重要な構成要件
+
+**⚠️ このプロジェクトはルート直下を Next.js プロジェクトとして使用しています。**
+
+- **App Router の場所**: `src/app/` が唯一の App Router ディレクトリです
+- **Vercel Root Directory**: **未設定（空）** にしてください
+  - Vercel ダッシュボード → Settings → General → Build and Development Settings
+  - Root Directory フィールドは空のままにしてください
+- **ルート直下の `app/` ディレクトリ**: **絶対に作成しないでください**
+  - ルート直下に `app/` を作成すると、`src/app/` をシャドウしてしまい、404エラーが発生します
+  - Next.js は `app/` と `src/app/` の両方が存在する場合、`app/` を優先します
+
+### デプロイ確認
+
+デプロイ後、以下のURLが正常に表示されることを確認してください：
+
+- `https://sellrush.vercel.app/` → トップページ（LP）
+- `https://sellrush.vercel.app/login` → ログインページ
+- `https://sellrush.vercel.app/dashboard` → ダッシュボード
+
+### 開発時の注意事項
+
+- **`useSearchParams()` を使用する場合**: 必ず `Suspense` boundary でラップしてください
+  - 例: `/purchase`, `/purchase/success` を参照
+  - ラップしないとビルド時にエラーが発生し、ルーティングが正しく生成されません
+- **ルート直下に `app/` を作成しない**: 誤って作成した場合は削除してください
