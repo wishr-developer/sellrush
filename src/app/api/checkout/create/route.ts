@@ -12,6 +12,9 @@ import {
 /**
  * Stripe Checkout Session 作成 API
  * 
+ * アクセス権限: 公開API（認証不要）
+ * 理由: Stripe Checkout は公開で問題ない（Stripe側で決済処理を行うため）
+ * 
  * フロー:
  * 1. product_id と affiliate_code を受け取る
  * 2. Supabase で商品と紹介リンクを検証

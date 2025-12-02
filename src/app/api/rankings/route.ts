@@ -5,22 +5,34 @@ import { unauthorizedError, internalServerError } from "@/lib/api-error";
 /**
  * Rankings API Route
  * Returns top creators ranked by total sales
- * Requires authentication (any logged-in user can view rankings)
- * Uses Service Role Key to bypass RLS and get all orders for ranking
+ * 
+ * アクセス権限:
+ * - 認証済みユーザー: 自分の順位も含めて返す
+ * - 未認証ユーザー: ランキングのみ返す（自分の順位は null）
+ * 
+ * RLS前提: Service Role Key を使用して全注文を取得（RLSをバイパス）
  */
 export async function GET(request: NextRequest) {
   try {
     // 認証チェック用のクライアント
     const supabase = createApiSupabaseClient(request);
 
-    // Check if user is authenticated
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      return unauthorizedError();
+    // 認証チェック（未認証でもアクセス可能）
+    let user: any = null;
+    let userId: string | null = null;
+    try {
+      const {
+        data: { user: authUser },
+        error: userError,
+      } = await supabase.auth.getUser();
+      
+      // 認証エラーは無視（未認証でもアクセス可能）
+      if (!userError && authUser) {
+        user = authUser;
+        userId = authUser.id;
+      }
+    } catch {
+      // 認証エラーは無視（未認証でもアクセス可能）
     }
 
     // Service Role Keyを使用して全注文を取得（RLSをバイパス）

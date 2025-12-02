@@ -89,6 +89,13 @@ export async function POST(request: NextRequest) {
       return unauthorizedError();
     }
 
+    // ロールチェック: creator または influencer のみアクセス可能
+    // RLS前提: creator_id = auth.uid() で保護されているが、API Route側でも明示的にチェック
+    const userRole = user.user_metadata?.role;
+    if (userRole !== "creator" && userRole !== "influencer") {
+      return forbiddenError("Creator access required");
+    }
+
     // Rate Limit Check (認証後、user.id ベースで再チェック)
     const rateLimitCheck = checkRateLimit(
       user.id,
