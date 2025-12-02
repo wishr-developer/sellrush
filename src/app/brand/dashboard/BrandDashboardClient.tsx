@@ -5,7 +5,18 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { showErrorToast } from "@/components/ui/Toast";
 import { DashboardSkeleton } from "@/components/ui/LoadingSkeleton";
+import { DashboardCard } from "@/components/dashboard/DashboardCard";
 import type { User, ProductPerformance, CreatorPerformance } from "@/types/dashboard";
+import type { LoadingState, ErrorState } from "@/types/dashboard-loading";
+import {
+  initialLoadingState,
+  initialErrorState,
+} from "@/types/dashboard-loading";
+import {
+  calculateBrandKPIData,
+  calculateProductPerformance,
+  calculateCreatorPerformance,
+} from "@/lib/dashboard-calculations";
 import {
   TrendingUp,
   DollarSign,
@@ -45,20 +56,42 @@ export default function BrandDashboardClient() {
     CreatorPerformance[]
   >([]);
 
+  // 個別のローディング/エラー状態管理（Phase 4パターン）
+  const [loadingState, setLoadingState] = useState<LoadingState>(initialLoadingState);
+  const [errorState, setErrorState] = useState<ErrorState>(initialErrorState);
+
   /**
    * ダッシュボードデータを取得
-   * RLS により、自分の product に紐づく orders のみ取得可能
+   * RLS前提: owner_id = auth.uid() の商品に紐づく orders のみ取得可能
+   * 
+   * データソース:
+   * - products (自分の商品)
+   * - orders (自分の商品に紐づく注文)
+   * 
+   * 計算ロジック:
+   * - KPI: calculateBrandKPIData() を使用
+   * - 商品別パフォーマンス: calculateProductPerformance() を使用
+   * - クリエイター別パフォーマンス: calculateCreatorPerformance() を使用
    */
   const fetchDashboardData = useCallback(async (brandId: string) => {
+    // ローディング開始、エラー状態をクリア
+    setLoadingState((prev) => ({ ...prev, sales: true }));
+    setErrorState((prev) => ({ ...prev, sales: null }));
+
     try {
       // 1. 自分の商品IDを取得
+      // RLS前提: owner_id = auth.uid() の商品のみ取得可能
       const { data: myProducts, error: productsError } = await supabase
         .from("products")
         .select("id, name")
-        .eq("brand_id", brandId);
+        .eq("owner_id", brandId);
 
       if (productsError) {
         console.error("商品データの取得に失敗しました:", productsError);
+        setErrorState((prev) => ({
+          ...prev,
+          sales: "商品データの取得に失敗しました",
+        }));
         showErrorToast("商品データの取得に失敗しました");
         return;
       }
@@ -78,13 +111,19 @@ export default function BrandDashboardClient() {
       const productIds = myProducts.map((p) => p.id);
 
       // 2. 自分の商品に紐づく orders を取得
+      // RLS前提: 関連する商品の owner_id = auth.uid() のみ取得可能
       const { data: orders, error: ordersError } = await supabase
         .from("orders")
         .select("id, product_id, creator_id, amount")
-        .in("product_id", productIds);
+        .in("product_id", productIds)
+        .eq("status", "completed");
 
       if (ordersError) {
         console.error("注文データの取得に失敗しました:", ordersError);
+        setErrorState((prev) => ({
+          ...prev,
+          sales: "注文データの取得に失敗しました",
+        }));
         showErrorToast("注文データの取得に失敗しました");
         return;
       }
@@ -101,79 +140,45 @@ export default function BrandDashboardClient() {
         return;
       }
 
-      // 3. KPI を計算
-      const totalRevenue = orders.reduce(
-        (sum, order) => sum + (order.amount || 0),
-        0
-      );
-      const totalOrders = orders.length;
+      // 3. KPI を計算（統一計算関数を使用）
+      const kpi = calculateBrandKPIData(orders as any);
       const activeCreators = new Set(
         orders.map((o) => o.creator_id).filter(Boolean)
       ).size;
 
       setKpiData({
-        totalRevenue,
-        totalOrders,
+        totalRevenue: kpi.totalRevenue,
+        totalOrders: kpi.totalOrders,
         activeCreators,
       });
 
-      // 4. 商品別パフォーマンスを計算
-      const productMap = new Map<string, ProductPerformance>();
+      // 4. 商品別パフォーマンスを計算（統一計算関数を使用）
+      const productNameMap = new Map<string, string>();
       myProducts.forEach((product) => {
-        productMap.set(product.id, {
-          product_id: product.id,
-          product_name: product.name,
-          revenue: 0,
-          order_count: 0,
-        });
+        productNameMap.set(product.id, product.name);
       });
 
-      orders.forEach((order) => {
-        const product = productMap.get(order.product_id);
-        if (product) {
-          product.revenue += order.amount || 0;
-          product.order_count += 1;
-        }
-      });
-
-      const productPerf = Array.from(productMap.values())
-        .filter((p) => p.order_count > 0)
-        .sort((a, b) => b.revenue - a.revenue);
-
+      const productPerf = calculateProductPerformance(
+        orders as any,
+        productNameMap
+      );
       setProductPerformance(productPerf);
 
-      // 5. Creator別パフォーマンスを計算
-      const creatorMap = new Map<string, CreatorPerformance>();
-
-      orders.forEach((order) => {
-        if (!order.creator_id) return;
-
-        const existing = creatorMap.get(order.creator_id);
-        if (existing) {
-          existing.revenue += order.amount || 0;
-          existing.order_count += 1;
-        } else {
-          creatorMap.set(order.creator_id, {
-            creator_id: order.creator_id,
-            revenue: order.amount || 0,
-            order_count: 1,
-            contribution_rate: 0,
-          });
-        }
-      });
-
-      // 貢献率を計算
-      const creatorPerf = Array.from(creatorMap.values())
-        .map((creator) => ({
-          ...creator,
-          contribution_rate:
-            totalRevenue > 0 ? (creator.revenue / totalRevenue) * 100 : 0,
-        }))
-        .sort((a, b) => b.revenue - a.revenue);
-
+      // 5. Creator別パフォーマンスを計算（統一計算関数を使用）
+      const creatorPerf = calculateCreatorPerformance(
+        orders as any,
+        kpi.totalRevenue
+      );
       setCreatorPerformance(creatorPerf);
     } catch (error) {
       console.error("ダッシュボードデータの取得エラー:", error);
+      setErrorState((prev) => ({
+        ...prev,
+        sales: "ダッシュボードデータの取得中にエラーが発生しました",
+      }));
+    } finally {
+      // ローディング終了
+      setLoadingState((prev) => ({ ...prev, sales: false }));
     }
   }, []);
 
@@ -370,49 +375,80 @@ export default function BrandDashboardClient() {
         </div>
 
         {/* 上段: KPI カード */}
+        {/* データソース: orders (fetchDashboardData で取得) */}
+        {/* 計算ロジック: calculateBrandKPIData() を使用 */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <div className="rounded-2xl border border-white/10 bg-zinc-950/70 p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-              <DollarSign className="w-5 h-5 text-emerald-300" />
+          {/* 総売上カード */}
+          <DashboardCard
+            title="総売上"
+            icon={<DollarSign className="w-5 h-5 text-emerald-300" />}
+            isLoading={loadingState.sales}
+            error={errorState.sales}
+            onRetry={user?.id ? () => fetchDashboardData(user.id) : undefined}
+            className="bg-zinc-950/70"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                <DollarSign className="w-5 h-5 text-emerald-300" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xl font-semibold">
+                  ¥{kpiData.totalRevenue.toLocaleString()}
+                </p>
+                <p className="text-[11px] text-zinc-500 mt-1">
+                  広告費なしで発生した実売上です
+                </p>
+              </div>
             </div>
-            <div className="flex-1">
-              <p className="text-xs text-zinc-400">総売上</p>
-              <p className="text-xl font-semibold">
-                ¥{kpiData.totalRevenue.toLocaleString()}
-              </p>
-              <p className="text-[11px] text-zinc-500 mt-1">
-                広告費なしで発生した実売上です
-              </p>
+          </DashboardCard>
+
+          {/* 注文件数カード */}
+          <DashboardCard
+            title="注文件数"
+            icon={<TrendingUp className="w-5 h-5 text-sky-300" />}
+            isLoading={loadingState.sales}
+            error={errorState.sales}
+            onRetry={user?.id ? () => fetchDashboardData(user.id) : undefined}
+            className="bg-zinc-950/70"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-sky-500/20 flex items-center justify-center flex-shrink-0">
+                <TrendingUp className="w-5 h-5 text-sky-300" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xl font-semibold">
+                  {kpiData.totalOrders.toLocaleString()} 件
+                </p>
+                <p className="text-[11px] text-zinc-500 mt-1">
+                  Creator経由の注文件数です
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-zinc-950/70 p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-sky-500/20 flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-sky-300" />
+          </DashboardCard>
+
+          {/* アクティブ Creatorカード */}
+          <DashboardCard
+            title="アクティブ Creator"
+            icon={<Users className="w-5 h-5 text-amber-300" />}
+            isLoading={loadingState.sales}
+            error={errorState.sales}
+            onRetry={user?.id ? () => fetchDashboardData(user.id) : undefined}
+            className="bg-zinc-950/70"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                <Users className="w-5 h-5 text-amber-300" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xl font-semibold">
+                  {kpiData.activeCreators.toLocaleString()} 人
+                </p>
+                <p className="text-[11px] text-zinc-500 mt-1">
+                  直近で成果が出ているCreator数です
+                </p>
+              </div>
             </div>
-            <div className="flex-1">
-              <p className="text-xs text-zinc-400">注文件数</p>
-              <p className="text-xl font-semibold">
-                {kpiData.totalOrders.toLocaleString()} 件
-              </p>
-              <p className="text-[11px] text-zinc-500 mt-1">
-                Creator経由の注文件数です
-              </p>
-            </div>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-zinc-950/70 p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center">
-              <Users className="w-5 h-5 text-amber-300" />
-            </div>
-            <div className="flex-1">
-              <p className="text-xs text-zinc-400">アクティブ Creator</p>
-              <p className="text-xl font-semibold">
-                {kpiData.activeCreators.toLocaleString()} 人
-              </p>
-              <p className="text-[11px] text-zinc-500 mt-1">
-                直近で成果が出ているCreator数です
-              </p>
-            </div>
-          </div>
+          </DashboardCard>
         </section>
 
         {/* 中段: 商品別パフォーマンス（視認性を下げる） */}

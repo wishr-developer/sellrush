@@ -129,3 +129,145 @@ export function getEstimatedCommissionDescription(salesStats: SalesStats): strin
   return "累計売上の30%相当";
 }
 
+/**
+ * ブランドKPIデータを計算
+ * 
+ * データソース: orders (OrderRow[] または product_id を含む注文データ)
+ * 計算ロジック:
+ * - totalRevenue: orders の amount を合計
+ * - totalOrders: orders の件数
+ * - avgOrderValue: totalRevenue / totalOrders
+ * - activeProducts: 注文がある商品の数
+ */
+export function calculateBrandKPIData(
+  orders: Array<OrderRow & { product_id?: string | null }>
+): {
+  totalRevenue: number;
+  totalOrders: number;
+  avgOrderValue: number;
+  activeProducts: number;
+} {
+  const totalRevenue = orders.reduce((sum, order) => sum + (order.amount || 0), 0);
+  const totalOrders = orders.length;
+  const avgOrderValue = totalOrders > 0 ? Math.floor(totalRevenue / totalOrders) : 0;
+  
+  // 注文がある商品IDを集計
+  const productIds = new Set<string>();
+  orders.forEach((order) => {
+    if (order.product_id) {
+      productIds.add(order.product_id);
+    }
+  });
+  const activeProducts = productIds.size;
+
+  return {
+    totalRevenue,
+    totalOrders,
+    avgOrderValue,
+    activeProducts,
+  };
+}
+
+/**
+ * 商品別パフォーマンスを計算
+ * 
+ * データソース: orders (OrderRow[] または product_id を含む注文データ) + products (商品名マップ)
+ * 計算ロジック:
+ * - 商品ごとに売上と注文件数を集計
+ * - 売上順にソート
+ */
+export function calculateProductPerformance(
+  orders: Array<OrderRow & { product_id?: string | null }>,
+  productNameMap: Map<string, string>
+): Array<{
+  product_id: string;
+  product_name: string;
+  revenue: number;
+  order_count: number;
+}> {
+  const productMap = new Map<
+    string,
+    { product_name: string; revenue: number; order_count: number }
+  >();
+
+  // 商品名マップから初期化
+  productNameMap.forEach((name, id) => {
+    productMap.set(id, {
+      product_name: name,
+      revenue: 0,
+      order_count: 0,
+    });
+  });
+
+  // 注文データを集計
+  orders.forEach((order) => {
+    if (!order.product_id) return;
+    const product = productMap.get(order.product_id);
+    if (product) {
+      product.revenue += order.amount || 0;
+      product.order_count += 1;
+    }
+  });
+
+  // 売上順にソート（売上がある商品のみ）
+  return Array.from(productMap.entries())
+    .map(([product_id, stats]) => ({
+      product_id,
+      product_name: stats.product_name,
+      revenue: stats.revenue,
+      order_count: stats.order_count,
+    }))
+    .filter((p) => p.order_count > 0)
+    .sort((a, b) => b.revenue - a.revenue);
+}
+
+/**
+ * クリエイター別パフォーマンスを計算
+ * 
+ * データソース: orders (OrderRow[] または creator_id を含む注文データ)
+ * 計算ロジック:
+ * - クリエイターごとに売上と注文件数を集計
+ * - 貢献率を計算（クリエイター売上 / 総売上 * 100）
+ * - 売上順にソート
+ */
+export function calculateCreatorPerformance(
+  orders: Array<OrderRow & { creator_id?: string | null }>,
+  totalRevenue: number
+): Array<{
+  creator_id: string;
+  revenue: number;
+  order_count: number;
+  contribution_rate: number;
+}> {
+  const creatorMap = new Map<
+    string,
+    { revenue: number; order_count: number }
+  >();
+
+  // 注文データを集計
+  orders.forEach((order) => {
+    if (!order.creator_id) return;
+    const existing = creatorMap.get(order.creator_id);
+    if (existing) {
+      existing.revenue += order.amount || 0;
+      existing.order_count += 1;
+    } else {
+      creatorMap.set(order.creator_id, {
+        revenue: order.amount || 0,
+        order_count: 1,
+      });
+    }
+  });
+
+  // 貢献率を計算してソート
+  return Array.from(creatorMap.entries())
+    .map(([creator_id, stats]) => ({
+      creator_id,
+      revenue: stats.revenue,
+      order_count: stats.order_count,
+      contribution_rate:
+        totalRevenue > 0 ? (stats.revenue / totalRevenue) * 100 : 0,
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
+}
+

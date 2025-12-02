@@ -96,6 +96,7 @@ export interface OrderRow {
   status?: string | null
   product_id?: string | null
   affiliate_link_id?: string | null
+  creator_id?: string | null
 }
 
 /**
