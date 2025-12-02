@@ -573,11 +573,8 @@ export default function DashboardClient() {
   }, [orders]);
 
   /**
-   * ランキングを取得（実DB接続）
-   * 注意: RLS により creator は自分の orders しか見られないため、
-   * 全体ランキングは取得できません。API エンドポイント経由で取得するか、
-   * または管理者のみが全体ランキングを表示できるようにする必要があります。
-   * 現時点では、自分の売上データのみを使用して順位を計算します。
+   * ランキングを取得（API経由）
+   * API エンドポイント経由で全体ランキングを取得し、自分の順位を更新
    * useCallback でメモ化して再レンダリングループを防止
    *
    * NOTE: fetchBattleStatus からも参照されるため、
@@ -585,44 +582,31 @@ export default function DashboardClient() {
    */
   const fetchRanking = useCallback(async (userId: string) => {
     try {
-      // 自分の売上を取得
-      const { data: myOrders, error } = await supabase
-        .from("orders")
-        .select("amount")
-        .eq("creator_id", userId);
-
-      if (error) {
+      const response = await fetch("/api/rankings");
+      
+      if (!response.ok) {
         // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
         if (process.env.NODE_ENV === "development") {
-          console.error("ランキングデータの取得に失敗しました:", error);
+          console.error("ランキングAPIの取得に失敗しました");
         }
-        setMyRank((prev) => (prev === null ? prev : null));
+        setMyRank(null);
         return;
       }
 
-      if (!myOrders || myOrders.length === 0) {
-        setMyRank((prev) => (prev === null ? prev : null));
-        return;
+      const data = await response.json();
+      
+      // APIから返された自分の順位を設定
+      if (data.myRank !== undefined && data.myRank !== null) {
+        setMyRank(data.myRank);
+      } else {
+        setMyRank(null);
       }
-
-      // 自分の売上合計（現状は値を利用せず、将来拡張のために計算のみ実施）
-      const myTotalSales = myOrders.reduce(
-        (sum, order) => sum + (order.amount || 0),
-        0
-      );
-      void myTotalSales; // 未使用警告を避ける（将来のランキング実装用）
-
-      // 注意: RLS により全 creator のデータは取得できないため、
-      // ランキングは API エンドポイント経由で取得する必要があります。
-      // 現時点では、ランキング情報は「準備中」として扱います。
-      // または、バトル内での順位のみを表示します。
-      setMyRank((prev) => (prev === null ? prev : null)); // 全体ランキングは取得不可のため null
     } catch (error) {
       // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
       if (process.env.NODE_ENV === "development") {
-        console.error("ランキング取得エラー:", error);
+        console.error("ランキングデータの取得エラー:", error);
       }
-      setMyRank((prev) => (prev === null ? prev : null));
+      setMyRank(null);
     }
   }, []); // 依存配列を空にして、関数を固定
 
@@ -1337,6 +1321,11 @@ export default function DashboardClient() {
               )}
             </div>
           </div>
+        </section>
+
+        {/* ランキングボード */}
+        <section className="mb-8">
+          <RankingBoard currentUserId={user.id} myRank={myRank} />
         </section>
       </div>
 
