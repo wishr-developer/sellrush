@@ -15,9 +15,16 @@ import type {
 
 /**
  * モックデータを使用するかどうか
+ * クライアントコンポーネントで使用するため、実行時に評価
  */
-export const USE_MOCK_DATA =
-  process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true";
+export function shouldUseMockData(): boolean {
+  if (typeof window === "undefined") {
+    // サーバー側では環境変数を直接参照
+    return process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true";
+  }
+  // クライアント側では window から取得（必要に応じて）
+  return process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true";
+}
 
 /**
  * モック売上データを生成
@@ -120,7 +127,7 @@ export function getMockDailyData(): DailyPoint[] {
 export function getDataWithFallback<T>(
   realData: T | null | undefined,
   mockData: T,
-  useMock: boolean = USE_MOCK_DATA
+  useMock: boolean = false
 ): T {
   // 実データが存在し、空でない場合は実データを返す
   if (realData !== null && realData !== undefined) {

@@ -359,7 +359,7 @@ export default function DashboardClient() {
 
       if (!affiliateLinks || affiliateLinks.length === 0) {
         // 紹介リンクが無い場合は、モックデータを使用するか売上0を設定
-        if (USE_MOCK_DATA) {
+        if (shouldUseMockData()) {
           const mockStats = getMockSalesStats();
           const mockOrders = getMockOrders();
           setSalesStats(mockStats);
@@ -448,7 +448,7 @@ export default function DashboardClient() {
         });
       } else {
         // データがない場合: モックデータを使用するか初期値を設定
-        if (USE_MOCK_DATA) {
+        if (shouldUseMockData()) {
           const mockStats = getMockSalesStats();
           const mockOrders = getMockOrders();
           setSalesStats(mockStats);
@@ -548,7 +548,7 @@ export default function DashboardClient() {
         });
       } else {
         // データがない場合: モックデータを使用するか初期値を設定
-        if (USE_MOCK_DATA) {
+        if (shouldUseMockData()) {
           setPayoutStats(getMockPayoutStats());
         } else {
           setPayoutStats({
@@ -576,10 +576,10 @@ export default function DashboardClient() {
   // 日別集計データ（直近30日）
   // データソース: orders
   // 計算ロジック: calculateDailyData() を使用
-  // フォールバック: モックデータ（USE_MOCK_DATA=true の場合）
+  // フォールバック: モックデータ（NEXT_PUBLIC_USE_MOCK_DATA=true の場合）
   const dailyData = useMemo(() => {
     const realData = calculateDailyData(orders);
-    return getDataWithFallback(realData, getMockDailyData(), USE_MOCK_DATA);
+    return getDataWithFallback(realData, getMockDailyData(), shouldUseMockData());
   }, [orders]);
 
   // 今日の売上と注文件数
@@ -671,7 +671,7 @@ export default function DashboardClient() {
 
       if (!participants || participants.length === 0) {
         // 参加バトルがない場合: モックデータを使用するか空配列を設定
-        if (USE_MOCK_DATA) {
+        if (shouldUseMockData()) {
           setBattles(getMockBattles());
         } else {
           setBattles((prev) => (prev.length === 0 ? prev : []));
@@ -703,7 +703,7 @@ export default function DashboardClient() {
 
       if (!battlesData || battlesData.length === 0) {
         // アクティブバトルがない場合: モックデータを使用するか空配列を設定
-        if (USE_MOCK_DATA) {
+        if (shouldUseMockData()) {
           setBattles(getMockBattles());
         } else {
           setBattles((prev) => (prev.length === 0 ? prev : []));
