@@ -20,6 +20,7 @@ import {
   Flame,
   ArrowRightCircle,
   Link2,
+  AlertTriangle,
 } from "lucide-react";
 import {
   LineChart,
@@ -106,6 +107,9 @@ export default function DashboardClient() {
 
   // 認証エラー表示用（/login へのハードリダイレクトは行わず、画面上で静かに表示する）
   const [authError, setAuthError] = useState<string | null>(null);
+
+  // 不正疑いの注文数（未レビュー）
+  const [fraudFlagsCount, setFraudFlagsCount] = useState<number>(0);
 
   // 個別のローディング/エラー状態管理
   const [loadingState, setLoadingState] = useState<LoadingState>(initialLoadingState);
@@ -211,52 +215,64 @@ export default function DashboardClient() {
         }
 
         // コンポーネントがアンマウントされていたら処理を中断
-        if (!mounted || hasRedirected) return;
+          if (!mounted || hasRedirected) return;
 
-        // データ取得（エラーが発生しても続行）
-        if (!user?.id) return;
-        try {
-          await fetchSalesData(user.id!);
-        } catch (e) {
-          // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
-          if (process.env.NODE_ENV === "development") {
-            console.error("売上データ取得エラー:", e);
+          // データ取得（エラーが発生しても続行）
+          if (!user?.id) return;
+          try {
+            await fetchSalesData(user.id!);
+          } catch (e) {
+            // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
+            if (process.env.NODE_ENV === "development") {
+              console.error("売上データ取得エラー:", e);
+            }
           }
-        }
 
-        if (!mounted || hasRedirected) return;
+          if (!mounted || hasRedirected) return;
 
-        if (!user?.id) return;
-        try {
-          await fetchPayoutStats(user.id!);
-        } catch (e) {
-          if (process.env.NODE_ENV === "development") {
-            console.error("報酬データ取得エラー:", e);
+          if (!user?.id) return;
+          try {
+            await fetchPayoutStats(user.id!);
+          } catch (e) {
+            if (process.env.NODE_ENV === "development") {
+              console.error("報酬データ取得エラー:", e);
+            }
           }
-        }
 
-        if (!mounted || hasRedirected) return;
+          if (!mounted || hasRedirected) return;
 
-        if (!user?.id) return;
-        try {
-          await fetchBattleStatus(user.id!);
-        } catch (e) {
-          // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
-          if (process.env.NODE_ENV === "development") {
-            console.error("バトル状況取得エラー:", e);
+          if (!user?.id) return;
+          try {
+            await fetchBattleStatus(user.id!);
+          } catch (e) {
+            // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
+            if (process.env.NODE_ENV === "development") {
+              console.error("バトル状況取得エラー:", e);
+            }
           }
-        }
 
-        if (!mounted || hasRedirected) return;
+          if (!mounted || hasRedirected) return;
 
-        try {
-          await fetchProducts();
-        } catch (e) {
-          // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
-          if (process.env.NODE_ENV === "development") {
-            console.error("商品データ取得エラー:", e);
+          if (!user?.id) return;
+          try {
+            await fetchFraudFlagsCount(user.id!);
+          } catch (e) {
+            // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
+            if (process.env.NODE_ENV === "development") {
+              console.error("不正検知フラグ取得エラー:", e);
+            }
           }
-        }
+
+          if (!mounted || hasRedirected) return;
+
+          try {
+            await fetchProducts();
+          } catch (e) {
+            // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
+            if (process.env.NODE_ENV === "development") {
+              console.error("商品データ取得エラー:", e);
+            }
+          }
       } catch (error) {
         // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
         if (process.env.NODE_ENV === "development") {

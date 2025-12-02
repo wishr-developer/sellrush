@@ -60,6 +60,9 @@ export default function BrandDashboardClient() {
   const [loadingState, setLoadingState] = useState<LoadingState>(initialLoadingState);
   const [errorState, setErrorState] = useState<ErrorState>(initialErrorState);
 
+  // 不正疑いの注文数（未レビュー）
+  const [fraudFlagsCount, setFraudFlagsCount] = useState<number>(0);
+
   /**
    * ダッシュボードデータを取得
    * RLS前提: owner_id = auth.uid() の商品に紐づく orders のみ取得可能
@@ -170,6 +173,52 @@ export default function BrandDashboardClient() {
         kpi.totalRevenue
       );
       setCreatorPerformance(creatorPerf);
+
+      // 不正疑いの注文数を取得（自分の商品の注文に紐づく fraud_flags）
+      // RLS前提: brand_id = auth.uid() の fraud_flags のみ取得可能（Adminのみ全件取得可能）
+      // 注意: 現在は Admin のみ fraud_flags を閲覧可能なため、
+      // Brand は直接取得できない可能性がある
+      // 将来的には RLS ポリシーを追加して Brand も自分の商品の fraud_flags を閲覧可能にする
+      try {
+        // 自分の商品IDを取得
+        const productIds = myProducts.map((p) => p.id);
+
+        // 自分の商品の注文IDを取得
+        const { data: myOrders } = await supabase
+          .from("orders")
+          .select("id")
+          .in("product_id", productIds)
+          .eq("status", "completed");
+
+        if (myOrders && myOrders.length > 0) {
+          const orderIds = myOrders.map((o) => o.id);
+
+          // 自分の商品の注文に紐づく fraud_flags を取得
+          // 注意: 現在は Admin のみ閲覧可能なため、エラーになる可能性がある
+          const { data: flags, error: flagsError } = await supabase
+            .from("fraud_flags")
+            .select("id")
+            .in("order_id", orderIds)
+            .eq("reviewed", false);
+
+          if (flagsError) {
+            // RLS でアクセスできない場合はエラーを無視（将来の実装を待つ）
+            if (process.env.NODE_ENV === "development") {
+              console.warn("Fraud flags fetch error (may be RLS restriction):", flagsError);
+            }
+            setFraudFlagsCount(0);
+          } else {
+            setFraudFlagsCount(flags?.length || 0);
+          }
+        } else {
+          setFraudFlagsCount(0);
+        }
+      } catch (error) {
+        if (process.env.NODE_ENV === "development") {
+          console.error("Fraud flags count fetch error:", error);
+        }
+        setFraudFlagsCount(0);
+      }
     } catch (error) {
       console.error("ダッシュボードデータの取得エラー:", error);
       setErrorState((prev) => ({
