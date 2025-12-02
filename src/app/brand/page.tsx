@@ -3,6 +3,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { showErrorToast } from "@/components/ui/Toast";
+import { DashboardSkeleton } from "@/components/ui/LoadingSkeleton";
+import type { User, BrandKPIData, BrandPayoutData, ProductPerformance } from "@/types/dashboard";
 // recharts は既に dependency に入っている前提
 import {
   Area,
@@ -31,16 +34,16 @@ export default function BrandDashboardPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [seriesData, setSeriesData] = useState<OrderPoint[]>([]);
   const [topProducts, setTopProducts] = useState<ProductStats[]>([]);
-  const [kpiData, setKpiData] = useState({
+  const [kpiData, setKpiData] = useState<BrandKPIData>({
     totalGmv: 0,
     totalOrders: 0,
     avgOrderValue: 0,
     activeProducts: 0,
   });
-  const [payoutData, setPayoutData] = useState({
+  const [payoutData, setPayoutData] = useState<BrandPayoutData>({
     totalBrandAmount: 0,
     pendingBrandAmount: 0,
     paidBrandAmount: 0,
@@ -86,7 +89,9 @@ export default function BrandDashboardPage() {
 
       if (productsError) {
         console.error("Products fetch error:", productsError);
-        setError("商品データの取得に失敗しました");
+        const errorMessage = "商品データの取得に失敗しました";
+        setError(errorMessage);
+        showErrorToast(errorMessage);
         setIsLoading(false);
         return;
       }
@@ -118,7 +123,9 @@ export default function BrandDashboardPage() {
 
       if (ordersError) {
         console.error("Orders fetch error:", ordersError);
-        setError("注文データの取得に失敗しました");
+        const errorMessage = "注文データの取得に失敗しました";
+        setError(errorMessage);
+        showErrorToast(errorMessage);
         setIsLoading(false);
         return;
       }
@@ -278,9 +285,7 @@ export default function BrandDashboardPage() {
       </header>
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <p className="text-sm text-slate-400">読み込み中...</p>
-        </div>
+        <DashboardSkeleton />
       ) : error ? (
         <div className="flex flex-col items-center justify-center py-12">
           <p className="text-sm text-red-400 mb-4">{error}</p>

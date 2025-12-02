@@ -109,8 +109,53 @@ export interface CreateAffiliateLinkRequest {
  * 紹介リンク生成レスポンス
  */
 export interface CreateAffiliateLinkResponse {
-  success: boolean
-  affiliate_code: string
-  message?: string
+  success: boolean;
+  affiliate_code: string;
+  message?: string;
+}
+
+/**
+ * Brand用の型定義
+ */
+
+/**
+ * Brand KPI データ
+ */
+export interface BrandKPIData {
+  totalGmv: number;
+  totalOrders: number;
+  avgOrderValue: number;
+  activeProducts: number;
+}
+
+/**
+ * Brand 報酬データ
+ */
+export interface BrandPayoutData {
+  totalBrandAmount: number;
+  pendingBrandAmount: number;
+  paidBrandAmount: number;
+  pendingCount: number;
+  paidCount: number;
+}
+
+/**
+ * 商品パフォーマンス
+ */
+export interface ProductPerformance {
+  product_id: string;
+  product_name: string;
+  revenue: number;
+  order_count: number;
+}
+
+/**
+ * クリエイターパフォーマンス
+ */
+export interface CreatorPerformance {
+  creator_id: string;
+  revenue: number;
+  order_count: number;
+  contribution_rate: number;
 }
 

@@ -4,18 +4,11 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { showSuccessToast, showErrorToast } from "@/components/ui/Toast";
+import { ListSkeleton } from "@/components/ui/LoadingSkeleton";
+import type { Product, User } from "@/types/dashboard";
 
-interface Product {
-  id: string;
-  name: string;
-  price: number;
-  status: string;
-  company_name: string;
-  created_at: string;
-  updated_at?: string | null;
-  creator_share_rate?: number;
-  platform_take_rate?: number;
-}
+// Product型は @/types/dashboard からインポート
 
 interface ProductWithStats extends Product {
   lastOrderAt: string | null;
@@ -28,7 +21,7 @@ export default function BrandProductsPage() {
   const [products, setProducts] = useState<ProductWithStats[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
@@ -71,7 +64,9 @@ export default function BrandProductsPage() {
 
       if (productsError) {
         console.error("Products fetch error:", productsError);
-        setError("商品データの取得に失敗しました");
+        const errorMessage = "商品データの取得に失敗しました";
+        setError(errorMessage);
+        showErrorToast(errorMessage);
         setIsLoading(false);
         return;
       }
@@ -179,8 +174,8 @@ export default function BrandProductsPage() {
       </header>
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <p className="text-sm text-slate-400">読み込み中...</p>
+        <div className="py-12">
+          <ListSkeleton count={5} />
         </div>
       ) : error ? (
         <div className="flex flex-col items-center justify-center py-12">
@@ -283,10 +278,10 @@ export default function BrandProductsPage() {
       )}
 
       {/* 商品登録・編集モーダル */}
-      {isModalOpen && (
+      {isModalOpen && user && (
         <ProductModal
           product={editingProduct}
-          userId={user?.id}
+          userId={user.id}
           onClose={handleCloseModal}
           onSuccess={handleCloseModal}
         />
@@ -361,6 +356,7 @@ function ProductModal({
           .eq("id", product.id);
 
         if (updateError) throw updateError;
+        showSuccessToast("商品を更新しました");
       } else {
         // 新規作成
         const { error: insertError } = await supabase
@@ -368,12 +364,15 @@ function ProductModal({
           .insert(productData);
 
         if (insertError) throw insertError;
+        showSuccessToast("商品を登録しました");
       }
 
       onSuccess();
     } catch (error: any) {
       console.error("Product save error:", error);
-      setError(error.message || "商品の保存に失敗しました");
+      const errorMessage = error.message || "商品の保存に失敗しました";
+      setError(errorMessage);
+      showErrorToast(errorMessage);
     } finally {
       setIsSaving(false);
     }

@@ -3,6 +3,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { showErrorToast } from "@/components/ui/Toast";
+import { DashboardSkeleton } from "@/components/ui/LoadingSkeleton";
+import type { User, ProductPerformance, CreatorPerformance } from "@/types/dashboard";
 import {
   TrendingUp,
   DollarSign,
@@ -15,24 +18,11 @@ import {
   CheckCircle,
 } from "lucide-react";
 
+// 型定義は @/types/dashboard からインポート
 type KPIData = {
   totalRevenue: number;
   totalOrders: number;
   activeCreators: number;
-};
-
-type ProductPerformance = {
-  product_id: string;
-  product_name: string;
-  revenue: number;
-  order_count: number;
-};
-
-type CreatorPerformance = {
-  creator_id: string;
-  revenue: number;
-  order_count: number;
-  contribution_rate: number;
 };
 
 /**
@@ -41,7 +31,7 @@ type CreatorPerformance = {
  */
 export default function BrandDashboardClient() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [kpiData, setKpiData] = useState<KPIData>({
     totalRevenue: 0,
@@ -69,6 +59,7 @@ export default function BrandDashboardClient() {
 
       if (productsError) {
         console.error("商品データの取得に失敗しました:", productsError);
+        showErrorToast("商品データの取得に失敗しました");
         return;
       }
 
@@ -94,6 +85,7 @@ export default function BrandDashboardClient() {
 
       if (ordersError) {
         console.error("注文データの取得に失敗しました:", ordersError);
+        showErrorToast("注文データの取得に失敗しました");
         return;
       }
 
@@ -261,12 +253,9 @@ export default function BrandDashboardClient() {
     }
   };
 
+  // loading 中はスケルトンローディングを表示
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        <p className="text-zinc-400">読み込み中...</p>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   if (!user) {
