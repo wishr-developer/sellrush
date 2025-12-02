@@ -192,6 +192,47 @@ export interface Database {
           updated_at?: string | null
         }
       }
+      tournaments: {
+        Row: {
+          id: string
+          slug: string
+          title: string
+          description: string | null
+          status: string
+          start_at: string
+          end_at: string
+          product_id: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          slug: string
+          title: string
+          description?: string | null
+          status?: string
+          start_at: string
+          end_at: string
+          product_id?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          slug?: string
+          title?: string
+          description?: string | null
+          status?: string
+          start_at?: string
+          end_at?: string
+          product_id?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string | null
+        }
+      }
       // TODO: 他のテーブルも追加
       // profiles, users, battles, etc.
     }

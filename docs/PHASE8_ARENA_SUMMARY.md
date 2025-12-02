@@ -334,12 +334,23 @@ create table tournament_rewards (
 Phase 8-A では、以下の機能を実装しました:
 
 1. ✅ **P8-A-1: ドメイン設計 & ドキュメント**: `docs/PHASE8_ARENA_PLAN.md` を作成
-2. ✅ **P8-A-2: Supabase スキーマ**: `tournaments` テーブルを定義
-3. ✅ **P8-A-3: ドメイン型 & ランキング計算**: `src/lib/arena/types.ts` と `src/lib/arena/ranking.ts` を作成
-4. ✅ **P8-A-4: API Routes**: 3つの API Route を実装
-5. ✅ **P8-A-5: Creator Dashboard 統合**: `CurrentTournamentCard` を追加
-6. ✅ **P8-A-6: Brand Dashboard 統合**: `TournamentOverviewCard` を追加
-7. ✅ **P8-A-7: ドキュメント & まとめ**: `docs/PHASE8_ARENA_SUMMARY.md` を作成
+2. ✅ **P8-A-2: Supabase スキーマ**: `tournaments` テーブルを定義（`supabase/migrations/20250130_create_tournaments.sql`）
+3. ✅ **P8-A-3: ドメイン型 & ランキング計算**: 
+   - `src/lib/arena/types.ts` を作成（Tournament, TournamentRankingRow などの型定義）
+   - `src/lib/arena/ranking.ts` を作成（`buildTournamentRankingFromOrders` 関数）
+4. ✅ **P8-A-4: API Routes**: 
+   - `GET /api/arena/tournaments` - トーナメント一覧
+   - `GET /api/arena/tournaments/[slug]` - トーナメント詳細
+   - `GET /api/arena/tournaments/[slug]/leaderboard` - ランキング
+5. ✅ **P8-A-5: Creator Dashboard 統合**: 
+   - `CurrentTournamentCard` コンポーネントを作成
+   - `DashboardClient.tsx` に統合（上部カードグリッドに配置）
+6. ✅ **P8-A-6: Brand Dashboard 統合**: 
+   - `TournamentOverviewCard` コンポーネントを作成
+   - `BrandDashboardClient.tsx` に統合
+7. ✅ **P8-A-7: ドキュメント & まとめ**: 
+   - `docs/PHASE8_ARENA_SUMMARY.md` を作成
+   - `src/types/database.ts` に `tournaments` テーブルの型定義を追加
 
 **現在の実装レベル**: MVP（最小限の機能）
 **次のステップ**: 複数商品のトーナメント、チームバトル、賞金ロジック、クリック数・CVR 指標、Fraud Radar との連携強化、リアルタイム更新

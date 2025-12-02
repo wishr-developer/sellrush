@@ -4,6 +4,16 @@
  * Phase 8-A: Arena / Tournament MVP 実装
  * 
  * 既存の dashboard-calculations.ts のパターンに合わせた実装
+ * 
+ * MVP で実装した範囲:
+ * - 売上金額（totalRevenue）のみでランキング
+ * - 1トーナメント = 1商品
+ * - 期間（start_at 〜 end_at）と商品（product_id）でフィルタ
+ * 
+ * 将来の拡張予定:
+ * - クリック数・CVR などの指標を追加
+ * - 複数商品のトーナメント対応
+ * - インフルエンサー名の表示（profiles テーブルから取得）
  */
 
 import type { OrderRow } from '@/types/dashboard';
