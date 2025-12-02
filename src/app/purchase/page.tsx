@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import Image from "next/image";
@@ -15,7 +15,7 @@ interface Product {
   creator_share_rate?: number;
 }
 
-export default function PurchasePage() {
+function PurchasePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const productId = searchParams.get("product_id");
@@ -210,3 +210,16 @@ export default function PurchasePage() {
   );
 }
 
+export default function PurchasePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-950 text-slate-50 flex items-center justify-center">
+          <p className="text-sm text-slate-400">読み込み中...</p>
+        </div>
+      }
+    >
+      <PurchasePageInner />
+    </Suspense>
+  );
+}

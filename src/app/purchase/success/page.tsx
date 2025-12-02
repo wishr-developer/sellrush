@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle, ArrowRight } from "lucide-react";
@@ -9,7 +9,7 @@ import { CheckCircle, ArrowRight } from "lucide-react";
  * 購入完了ページ
  * Stripe Checkout から戻ってきた際に表示
  */
-export default function PurchaseSuccessPage() {
+function PurchaseSuccessPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionId = searchParams.get("session_id");
@@ -85,3 +85,21 @@ export default function PurchaseSuccessPage() {
   );
 }
 
+export default function PurchaseSuccessPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-950 text-slate-50 flex items-center justify-center px-4">
+          <div className="text-center">
+            <div className="mb-4">
+              <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-emerald-500 border-r-transparent"></div>
+            </div>
+            <p className="text-sm text-slate-400">読み込み中...</p>
+          </div>
+        </div>
+      }
+    >
+      <PurchaseSuccessPageInner />
+    </Suspense>
+  );
+}
