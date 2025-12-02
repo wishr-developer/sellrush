@@ -439,8 +439,8 @@ export default function BrandDashboardClient() {
             <TournamentOverviewCard
               brandId={user.id}
               productIds={myProducts.map((p) => p.id)}
-              isLoading={loadingState.brandKpis}
-              error={errorState.brandKpis}
+              isLoading={loadingState.sales}
+              error={errorState.sales}
               onRetry={user?.id ? async () => {
                 // 商品データを再取得
                 try {
