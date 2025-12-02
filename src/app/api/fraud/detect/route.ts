@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createApiSupabaseClient } from "@/lib/supabase-server";
+import { createApiSupabaseClient, createAdminSupabaseClient } from "@/lib/supabase-server";
+import { runFraudDetectionRules } from "@/lib/fraud-rules";
+import {
+  unauthorizedError,
+  validationError,
+  internalServerError,
+  rateLimitError,
+} from "@/lib/api-error";
 
 /**
  * Rate Limit Store (In-Memory)
@@ -66,10 +73,7 @@ export async function POST(request: NextRequest) {
   // 認証前にIPベースでチェック（認証失敗時も制限）
   const preAuthCheck = checkRateLimit(null, ip, "/api/fraud/detect", 20, 5 * 60 * 1000);
   if (!preAuthCheck.allowed) {
-    return NextResponse.json(
-      { error: "Too many requests. Please try again later." },
-      { status: 429 }
-    );
+    return rateLimitError("Too many requests. Please try again later.");
   }
 
   try {
@@ -95,12 +99,10 @@ export async function POST(request: NextRequest) {
     const internalCall =
       request.headers.get("x-internal-call") === "true";
 
-    // 内部呼び出し or admin のみ許可
+    // ロールチェック: 内部呼び出し or admin のみ許可
+    // セキュリティ: 外部からの直接呼び出しを防ぐ
     if (!internalCall && user?.user_metadata?.role !== "admin") {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return unauthorizedError("Unauthorized");
     }
 
     // Rate Limit Check (user.id ベース、取れない場合は IP のみ)
@@ -113,10 +115,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (!rateLimitCheck.allowed) {
-      return NextResponse.json(
-        { error: "Too many requests. Please try again later." },
-        { status: 429 }
-      );
+      return rateLimitError("Too many requests. Please try again later.");
     }
 
     // Parse request body
@@ -124,10 +123,7 @@ export async function POST(request: NextRequest) {
     const { order_id } = body;
 
     if (!order_id) {
-      return NextResponse.json(
-        { error: "order_id is required" },
-        { status: 400 }
-      );
+      return validationError("order_id is required");
     }
 
     // 1. order を取得
@@ -142,10 +138,7 @@ export async function POST(request: NextRequest) {
       if (process.env.NODE_ENV === "development") {
         console.error("Order fetch error:", orderError);
       }
-      return NextResponse.json(
-        { error: "Failed to fetch order" },
-        { status: 500 }
-      );
+      return validationError("Order not found");
     }
 
     // status が 'completed' でない場合はスキップ
@@ -157,30 +150,27 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 2. product から brand_id を取得
+    // 2. product から owner_id (brand_id) を取得
+    // RLS前提: 商品情報は公開商品であれば取得可能
     const { data: product } = await supabase
       .from("products")
-      .select("id, brand_id")
+      .select("id, owner_id")
       .eq("id", order.product_id)
       .single();
 
-    const brandId = product?.brand_id || null;
+    const brandId = product?.owner_id || null;
 
-    // 3. 不正検知ルールを実行
-    const flags: any[] = [];
+    // 3. 不正検知ルールを実行（統一ルール関数を使用）
+    // コンテキスト情報を収集
+    const context: {
+      brandId?: string | null;
+      recentOrdersCount?: number;
+      averageAmount?: number;
+    } = {
+      brandId: brandId || null,
+    };
 
-    // A) 自己購入検知: creator_id === brand_id
-    if (order.creator_id && brandId && order.creator_id === brandId) {
-      flags.push({
-        order_id: order.id,
-        creator_id: order.creator_id,
-        brand_id: brandId,
-        reason: "Self-purchase detected (creator_id === brand_id)",
-        severity: "high",
-      });
-    }
-
-    // B) Burst orders 検知: 同一 creator が 5分以内に 5件以上
+    // B) Burst orders 検知用: 同一 creator が 5分以内の注文数を取得
     if (order.creator_id) {
       const fiveMinutesAgo = new Date(
         new Date(order.created_at).getTime() - 5 * 60 * 1000
@@ -194,20 +184,11 @@ export async function POST(request: NextRequest) {
         .gte("created_at", fiveMinutesAgo)
         .lte("created_at", order.created_at);
 
-      if (recentOrders && recentOrders.length >= 5) {
-        flags.push({
-          order_id: order.id,
-          creator_id: order.creator_id,
-          brand_id: brandId,
-          reason: `Burst orders detected (${recentOrders.length} orders in 5 minutes)`,
-          severity: "medium",
-        });
-      }
+      context.recentOrdersCount = recentOrders?.length || 0;
     }
 
-    // C) Amount anomaly 検知: 平均注文額から大幅乖離
+    // C) Amount anomaly 検知用: 全 orders の平均額を計算
     if (order.amount) {
-      // 全 orders の平均額を計算
       const { data: allOrders } = await supabase
         .from("orders")
         .select("amount")
@@ -218,20 +199,12 @@ export async function POST(request: NextRequest) {
           (sum, o) => sum + (o.amount || 0),
           0
         );
-        const avgAmount = totalAmount / allOrders.length;
-        const threshold = avgAmount * 3; // 平均の3倍以上
-
-        if (order.amount > threshold) {
-          flags.push({
-            order_id: order.id,
-            creator_id: order.creator_id,
-            brand_id: brandId,
-            reason: `Amount anomaly detected (¥${order.amount.toLocaleString()} vs avg ¥${Math.floor(avgAmount).toLocaleString()})`,
-            severity: "low",
-          });
-        }
+        context.averageAmount = totalAmount / allOrders.length;
       }
     }
+
+    // 統一ルール関数で検知
+    const flags = runFraudDetectionRules(order, context);
 
     // 4. fraud_flags に INSERT
     if (flags.length > 0) {
@@ -245,16 +218,7 @@ export async function POST(request: NextRequest) {
         if (process.env.NODE_ENV === "development") {
           console.error("Fraud flags insert error:", insertError);
         }
-        return NextResponse.json(
-          {
-            success: true,
-            message: "Fraud detection completed but failed to save flags",
-            flags: [],
-            // 本番環境ではエラーメッセージを一般化
-            error: process.env.NODE_ENV === "development" ? insertError.message : "Database error",
-          },
-          { status: 500 }
-        );
+        return internalServerError("Failed to save fraud flags");
       }
 
       return NextResponse.json({
@@ -269,15 +233,12 @@ export async function POST(request: NextRequest) {
       message: "No fraud detected",
       flags: [],
     });
-  } catch (error) {
+  } catch (error: any) {
     // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
     if (process.env.NODE_ENV === "development") {
       console.error("Fraud detection API error:", error);
     }
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return internalServerError(error.message || "Internal server error");
   }
 }
 
