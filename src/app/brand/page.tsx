@@ -138,6 +138,7 @@ export default function BrandDashboardPage() {
       // 3. 日別に集計（直近30日）
       const dailyData: Record<string, { gmv: number; orders: number }> = {};
       const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
       // 直近30日の日付を初期化
       for (let i = 29; i >= 0; i--) {
@@ -197,8 +198,6 @@ export default function BrandDashboardPage() {
       const previousWeekOrdersCount = previousWeekOrders.length;
 
       // 前日比を計算（直近1日 vs その前の1日）
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
       const twoDaysAgo = new Date(yesterday);
