@@ -37,6 +37,8 @@ import MobileTabBar from "@/components/MobileTabBar";
 import RankingBoard from "@/components/RankingBoard";
 import { PasswordSetupModal } from "@/components/auth/PasswordSetupModal";
 import { AffiliateLinkModal } from "@/components/dashboard/AffiliateLinkModal";
+import { showErrorToast, showSuccessToast } from "@/components/ui/Toast";
+import { DashboardSkeleton } from "@/components/ui/LoadingSkeleton";
 import type {
   User,
   ProductSummary,
@@ -363,6 +365,7 @@ export default function DashboardClient() {
         if (process.env.NODE_ENV === "development") {
           console.error("売上データの取得に失敗しました:", error);
         }
+        showErrorToast("売上データの取得に失敗しました");
         return;
       }
 
@@ -470,6 +473,7 @@ export default function DashboardClient() {
         if (process.env.NODE_ENV === "development") {
           console.error("Payout stats fetch error:", error);
         }
+        showErrorToast("報酬データの取得に失敗しました");
         return;
       }
 
@@ -829,7 +833,7 @@ export default function DashboardClient() {
    */
   const handleCreateOrder = async () => {
     if (!selectedProductId || !orderAmount || orderAmount <= 0) {
-      alert("商品と金額を選択してください");
+      showErrorToast("商品と金額を選択してください");
       return;
     }
 
@@ -859,13 +863,13 @@ export default function DashboardClient() {
       }
 
       setShowCreateOrderModal(false);
-      alert("売上を生成しました！");
+      showSuccessToast("売上を生成しました！");
     } catch (error: any) {
       // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
       if (process.env.NODE_ENV === "development") {
         console.error("売上生成エラー:", error);
       }
-      alert(error.message || "売上の生成に失敗しました");
+      showErrorToast(error.message || "売上の生成に失敗しました");
     } finally {
       setIsCreatingOrder(false);
     }
@@ -883,13 +887,9 @@ export default function DashboardClient() {
     }
   };
 
-  // loading 中はローディング表示のみ
+  // loading 中はスケルトンローディングを表示
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        <p className="text-zinc-400">読み込み中...</p>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   // user 情報が取得できなかった場合は、/login に戻さず静かなエラーメッセージだけ表示する

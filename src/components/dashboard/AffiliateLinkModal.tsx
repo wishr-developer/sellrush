@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Copy, Check, Share2, QrCode } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Product, CreateAffiliateLinkResponse } from "@/types/dashboard";
+import { showSuccessToast, showErrorToast } from "@/components/ui/Toast";
 import QRCode from "qrcode";
 
 interface AffiliateLinkModalProps {
@@ -131,12 +132,16 @@ export function AffiliateLinkModal({
       setAffiliateCode(code);
       setAffiliateLink(link);
 
+      showSuccessToast("紹介リンクを生成しました！");
+
       // 成功コールバックを呼び出し
       if (onSuccess) {
         onSuccess(code, selectedProductId);
       }
     } catch (err: any) {
-      setError(err.message || "紹介リンクの作成に失敗しました");
+      const errorMessage = err.message || "紹介リンクの作成に失敗しました";
+      setError(errorMessage);
+      showErrorToast(errorMessage);
       console.error("Create affiliate link error:", err);
     } finally {
       setIsCreating(false);
@@ -149,9 +154,12 @@ export function AffiliateLinkModal({
     try {
       await navigator.clipboard.writeText(affiliateLink);
       setCopied(true);
+      showSuccessToast("リンクをクリップボードにコピーしました");
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      setError("リンクのコピーに失敗しました");
+      const errorMessage = "リンクのコピーに失敗しました";
+      setError(errorMessage);
+      showErrorToast(errorMessage);
     }
   };
 
