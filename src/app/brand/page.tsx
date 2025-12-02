@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { showErrorToast } from "@/components/ui/Toast";
 import { DashboardSkeleton } from "@/components/ui/LoadingSkeleton";
+import { TrendingUp, TrendingDown, ArrowRight } from "lucide-react";
+import Link from "next/link";
 import type { User, BrandKPIData, BrandPayoutData, ProductPerformance } from "@/types/dashboard";
 // recharts は既に dependency に入っている前提
 import {
@@ -42,6 +44,9 @@ export default function BrandDashboardPage() {
     totalOrders: 0,
     avgOrderValue: 0,
     activeProducts: 0,
+    previousWeekGmv: 0,
+    previousWeekOrdersCount: 0,
+    gmvChangePercent: 0,
   });
   const [payoutData, setPayoutData] = useState<BrandPayoutData>({
     totalBrandAmount: 0,
@@ -178,11 +183,51 @@ export default function BrandDashboardPage() {
       const totalOrders = recent7DaysOrders.length;
       const avgOrderValue = totalOrders === 0 ? 0 : Math.round(totalGmv / totalOrders);
 
+      // 前週（8-14日前）のデータを取得して比較
+      const fourteenDaysAgo = new Date();
+      fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+      fourteenDaysAgo.setHours(0, 0, 0, 0);
+
+      const previousWeekOrders = orders?.filter((order) => {
+        const orderDate = new Date(order.created_at);
+        return orderDate >= fourteenDaysAgo && orderDate < sevenDaysAgo;
+      }) || [];
+
+      const previousWeekGmv = previousWeekOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
+      const previousWeekOrdersCount = previousWeekOrders.length;
+
+      // 前日比を計算（直近1日 vs その前の1日）
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const twoDaysAgo = new Date(yesterday);
+      twoDaysAgo.setDate(twoDaysAgo.getDate() - 1);
+
+      const yesterdayOrders = orders?.filter((order) => {
+        const orderDate = new Date(order.created_at);
+        return orderDate >= yesterday && orderDate < today;
+      }) || [];
+
+      const dayBeforeOrders = orders?.filter((order) => {
+        const orderDate = new Date(order.created_at);
+        return orderDate >= twoDaysAgo && orderDate < yesterday;
+      }) || [];
+
+      const yesterdayGmv = yesterdayOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
+      const dayBeforeGmv = dayBeforeOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
+      const gmvChangePercent = dayBeforeGmv > 0 
+        ? Math.round(((yesterdayGmv - dayBeforeGmv) / dayBeforeGmv) * 100)
+        : 0;
+
       setKpiData({
         totalGmv,
         totalOrders,
         avgOrderValue,
         activeProducts: products.length,
+        previousWeekGmv,
+        previousWeekOrdersCount,
+        gmvChangePercent,
       });
 
       // 5. 商品別売上集計（直近30日）
@@ -282,6 +327,15 @@ export default function BrandDashboardPage() {
             自社商品の売上・パフォーマンスをひと目で確認できます。
           </p>
         </div>
+        <div className="flex gap-2">
+          <Link
+            href="/brand/products"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-3 py-1.5 text-xs text-slate-200 hover:border-slate-500 transition-colors"
+          >
+            商品管理
+            <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
       </header>
 
       {isLoading ? (
@@ -308,12 +362,38 @@ export default function BrandDashboardPage() {
         <KpiCard
           label="直近7日のGMV"
           value={`¥${totalGmv.toLocaleString()}`}
-              caption="完了済み注文の売上合計"
+          caption={
+            kpiData.previousWeekGmv !== undefined && kpiData.previousWeekGmv > 0
+              ? `前週比: ${kpiData.previousWeekGmv > 0 ? Math.round(((totalGmv - kpiData.previousWeekGmv) / kpiData.previousWeekGmv) * 100) : 0}%`
+              : "完了済み注文の売上合計"
+          }
+          trend={
+            kpiData.previousWeekGmv !== undefined && kpiData.previousWeekGmv > 0
+              ? totalGmv > kpiData.previousWeekGmv
+                ? "up"
+                : totalGmv < kpiData.previousWeekGmv
+                ? "down"
+                : "neutral"
+              : undefined
+          }
         />
         <KpiCard
           label="直近7日の注文数"
           value={`${totalOrders} 件`}
-              caption="完了済み注文のみカウント"
+          caption={
+            kpiData.previousWeekOrdersCount !== undefined && kpiData.previousWeekOrdersCount > 0
+              ? `前週比: ${Math.round(((totalOrders - kpiData.previousWeekOrdersCount) / kpiData.previousWeekOrdersCount) * 100)}%`
+              : "完了済み注文のみカウント"
+          }
+          trend={
+            kpiData.previousWeekOrdersCount !== undefined && kpiData.previousWeekOrdersCount > 0
+              ? totalOrders > kpiData.previousWeekOrdersCount
+                ? "up"
+                : totalOrders < kpiData.previousWeekOrdersCount
+                ? "down"
+                : "neutral"
+              : undefined
+          }
         />
         <KpiCard
           label="平均注文単価"
@@ -323,11 +403,38 @@ export default function BrandDashboardPage() {
           caption="GMV ÷ 注文件数"
         />
         <KpiCard
-              label="登録商品数"
-              value={`${kpiData.activeProducts} 商品`}
-              caption="現在登録中の商品数"
+          label="登録商品数"
+          value={`${kpiData.activeProducts} 商品`}
+          caption="現在登録中の商品数"
         />
       </section>
+
+      {/* 前日比サマリー */}
+      {kpiData.gmvChangePercent !== undefined && kpiData.gmvChangePercent !== 0 && (
+        <section className="mb-6">
+          <div className={`rounded-xl border p-4 ${
+            kpiData.gmvChangePercent > 0
+              ? "border-emerald-500/20 bg-emerald-500/5"
+              : "border-red-500/20 bg-red-500/5"
+          }`}>
+            <div className="flex items-center gap-2">
+              {kpiData.gmvChangePercent > 0 ? (
+                <TrendingUp className="w-4 h-4 text-emerald-400" />
+              ) : (
+                <TrendingDown className="w-4 h-4 text-red-400" />
+              )}
+              <p className={`text-sm font-medium ${
+                kpiData.gmvChangePercent > 0 ? "text-emerald-400" : "text-red-400"
+              }`}>
+                前日比: {kpiData.gmvChangePercent > 0 ? "+" : ""}{kpiData.gmvChangePercent}%
+              </p>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">
+              昨日のGMVは前日と比較して{Math.abs(kpiData.gmvChangePercent)}%{kpiData.gmvChangePercent > 0 ? "増加" : "減少"}しました
+            </p>
+          </div>
+        </section>
+      )}
 
           {/* ブランド取り分の報酬サマリー */}
           <section className="grid gap-3 md:grid-cols-3 mb-6">
@@ -467,10 +574,24 @@ function KpiCard(props: {
   label: string;
   value: string;
   caption?: string;
+  trend?: "up" | "down" | "neutral";
 }) {
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-      <p className="text-[11px] text-slate-500">{props.label}</p>
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-[11px] text-slate-500">{props.label}</p>
+        {props.trend && (
+          <div className={`flex items-center gap-1 ${
+            props.trend === "up" ? "text-emerald-400" : props.trend === "down" ? "text-red-400" : "text-slate-500"
+          }`}>
+            {props.trend === "up" ? (
+              <TrendingUp className="w-3 h-3" />
+            ) : props.trend === "down" ? (
+              <TrendingDown className="w-3 h-3" />
+            ) : null}
+          </div>
+        )}
+      </div>
       <p className="mt-1 text-base font-semibold text-slate-50">
         {props.value}
       </p>

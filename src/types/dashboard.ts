@@ -126,6 +126,9 @@ export interface BrandKPIData {
   totalOrders: number;
   avgOrderValue: number;
   activeProducts: number;
+  previousWeekGmv?: number;
+  previousWeekOrdersCount?: number;
+  gmvChangePercent?: number;
 }
 
 /**
