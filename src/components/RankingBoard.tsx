@@ -30,21 +30,26 @@ export default function RankingBoard({ currentUserId, myRank }: RankingBoardProp
       try {
         setIsLoading(true)
 
-        // 注意: RLS により creator は自分の orders しか見られないため、
-        // 全体ランキングを取得することはできません。
-        // ランキングはデータベース関数または別テーブルが必要です。
-        // 現時点では、空のランキングを表示します。
+        const response = await fetch("/api/rankings")
         
-        // TODO: データベース関数またはランキングテーブルを作成して、
-        // 全体ランキングを取得できるようにする
+        if (!response.ok) {
+          throw new Error("ランキングの取得に失敗しました")
+        }
+
+        const data = await response.json()
         
-        setRankings([])
+        if (data.rankings && Array.isArray(data.rankings)) {
+          setRankings(data.rankings)
+        } else {
+          setRankings([])
+        }
 
       } catch (error) {
         // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
         if (process.env.NODE_ENV === "development") {
           console.error('ランキングデータの取得エラー:', error)
         }
+        setRankings([])
       } finally {
         setIsLoading(false)
       }
