@@ -39,6 +39,7 @@ import RankingBoard from "@/components/RankingBoard";
 import { PasswordSetupModal } from "@/components/auth/PasswordSetupModal";
 import { AffiliateLinkModal } from "@/components/dashboard/AffiliateLinkModal";
 import { DashboardCard } from "@/components/dashboard/DashboardCard";
+import { CurrentTournamentCard } from "@/components/dashboard/creator/CurrentTournamentCard";
 import { showErrorToast, showSuccessToast } from "@/components/ui/Toast";
 import { DashboardSkeleton } from "@/components/ui/LoadingSkeleton";
 import type {
@@ -1136,10 +1137,20 @@ export default function DashboardClient() {
           </button>
         </div>
 
-        {/* 上部: Tonight Battle / 今日のサマリ / 報酬見込み / 順位 */}
+        {/* 上部: 現在のトーナメント / Tonight Battle / 今日のサマリ / 報酬見込み / 順位 */}
         <section className="mb-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {/* Tonight Battle / アクティブバトル */}
+            {/* 現在のトーナメント（新規追加） */}
+            {user?.id && (
+              <CurrentTournamentCard
+                userId={user.id}
+                isLoading={loadingState.battles}
+                error={errorState.battles}
+                onRetry={user?.id ? () => fetchBattleStatus(user.id) : undefined}
+              />
+            )}
+
+            {/* Tonight Battle / アクティブバトル（既存、後方互換性のため維持） */}
             <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-zinc-950/80 to-zinc-900/60 p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Zap className="w-4 h-4 text-amber-400" />

@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { showErrorToast } from "@/components/ui/Toast";
 import { DashboardSkeleton } from "@/components/ui/LoadingSkeleton";
 import { DashboardCard } from "@/components/dashboard/DashboardCard";
+import { TournamentOverviewCard } from "@/components/dashboard/brand/TournamentOverviewCard";
 import type { User, ProductPerformance, CreatorPerformance } from "@/types/dashboard";
 import type { LoadingState, ErrorState } from "@/types/dashboard-loading";
 import {
