@@ -358,13 +358,20 @@ export default function DashboardClient() {
       }
 
       if (!affiliateLinks || affiliateLinks.length === 0) {
-        // 紹介リンクが無い場合は売上0
-        setSalesStats({
-          totalSales: 0,
-          totalRevenue: 0,
-          estimatedCommission: 0,
-        });
-        setOrders([]);
+        // 紹介リンクが無い場合は、モックデータを使用するか売上0を設定
+        if (USE_MOCK_DATA) {
+          const mockStats = getMockSalesStats();
+          const mockOrders = getMockOrders();
+          setSalesStats(mockStats);
+          setOrders(mockOrders);
+        } else {
+          setSalesStats({
+            totalSales: 0,
+            totalRevenue: 0,
+            estimatedCommission: 0,
+          });
+          setOrders([]);
+        }
         return;
       }
 
@@ -401,7 +408,7 @@ export default function DashboardClient() {
         (products || []).map((p) => [p.id, p.creator_share_rate || 0.25])
       );
 
-      if (data) {
+      if (data && data.length > 0) {
         const totalSales = data.length;
         const totalRevenue = data.reduce((sum, order) => {
           return sum + (order.amount || 0);
@@ -440,21 +447,29 @@ export default function DashboardClient() {
           };
         });
       } else {
-        // データがない場合も初期値を設定（変更がある場合のみ）
-        setSalesStats((prev) => {
-          if (
-            prev.totalSales === 0 &&
-            prev.totalRevenue === 0 &&
-            prev.estimatedCommission === 0
-          ) {
-            return prev;
-          }
-          return {
-            totalSales: 0,
-            totalRevenue: 0,
-            estimatedCommission: 0,
-          };
-        });
+        // データがない場合: モックデータを使用するか初期値を設定
+        if (USE_MOCK_DATA) {
+          const mockStats = getMockSalesStats();
+          const mockOrders = getMockOrders();
+          setSalesStats(mockStats);
+          setOrders(mockOrders);
+        } else {
+          setSalesStats((prev) => {
+            if (
+              prev.totalSales === 0 &&
+              prev.totalRevenue === 0 &&
+              prev.estimatedCommission === 0
+            ) {
+              return prev;
+            }
+            return {
+              totalSales: 0,
+              totalRevenue: 0,
+              estimatedCommission: 0,
+            };
+          });
+          setOrders([]);
+        }
       }
     } catch (error) {
       // 本番環境では詳細なエラー情報をログに出力しない（セキュリティ）
@@ -518,7 +533,7 @@ export default function DashboardClient() {
         return;
       }
 
-      if (data) {
+      if (data && data.length > 0) {
         const pending = data.filter((p) => p.status === "pending");
         const paid = data.filter((p) => p.status === "paid");
 
@@ -532,12 +547,17 @@ export default function DashboardClient() {
           paidCount: paid.length,
         });
       } else {
-        setPayoutStats({
-          totalPending: 0,
-          totalPaid: 0,
-          pendingCount: 0,
-          paidCount: 0,
-        });
+        // データがない場合: モックデータを使用するか初期値を設定
+        if (USE_MOCK_DATA) {
+          setPayoutStats(getMockPayoutStats());
+        } else {
+          setPayoutStats({
+            totalPending: 0,
+            totalPaid: 0,
+            pendingCount: 0,
+            paidCount: 0,
+          });
+        }
       }
     } catch (error) {
       if (process.env.NODE_ENV === "development") {
@@ -556,8 +576,10 @@ export default function DashboardClient() {
   // 日別集計データ（直近30日）
   // データソース: orders
   // 計算ロジック: calculateDailyData() を使用
+  // フォールバック: モックデータ（USE_MOCK_DATA=true の場合）
   const dailyData = useMemo(() => {
-    return calculateDailyData(orders);
+    const realData = calculateDailyData(orders);
+    return getDataWithFallback(realData, getMockDailyData(), USE_MOCK_DATA);
   }, [orders]);
 
   // 今日の売上と注文件数
@@ -648,7 +670,12 @@ export default function DashboardClient() {
       }
 
       if (!participants || participants.length === 0) {
-        setBattles((prev) => (prev.length === 0 ? prev : []));
+        // 参加バトルがない場合: モックデータを使用するか空配列を設定
+        if (USE_MOCK_DATA) {
+          setBattles(getMockBattles());
+        } else {
+          setBattles((prev) => (prev.length === 0 ? prev : []));
+        }
         return;
       }
 
@@ -675,7 +702,12 @@ export default function DashboardClient() {
       }
 
       if (!battlesData || battlesData.length === 0) {
-        setBattles((prev) => (prev.length === 0 ? prev : []));
+        // アクティブバトルがない場合: モックデータを使用するか空配列を設定
+        if (USE_MOCK_DATA) {
+          setBattles(getMockBattles());
+        } else {
+          setBattles((prev) => (prev.length === 0 ? prev : []));
+        }
         return;
       }
 
