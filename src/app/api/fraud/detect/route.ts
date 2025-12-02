@@ -73,34 +73,8 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return NextResponse.json(
-        { error: "Missing Supabase configuration" },
-        { status: 500 }
-      );
-    }
-
     // Create server client
-    const supabase = createServerClient(
-      supabaseUrl,
-      supabaseAnonKey,
-      {
-        cookies: {
-          get(name: string) {
-            return request.cookies.get(name)?.value;
-          },
-          set() {
-            // Not needed for POST requests
-          },
-          remove() {
-            // Not needed for POST requests
-          },
-        },
-      }
-    );
+    const supabase = createApiSupabaseClient(request);
 
     // user.id を取得（認証されていない場合は null）
     // セキュリティ要件: user.id が取れない場合は IP のみで制御
