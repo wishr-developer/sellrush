@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createApiSupabaseClient } from "@/lib/supabase-server";
 import {
   unauthorizedError,
+  forbiddenError,
   rateLimitError,
   validationError,
   internalServerError,
