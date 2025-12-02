@@ -54,6 +54,13 @@ import {
   initialLoadingState,
   initialErrorState,
 } from "@/types/dashboard-loading";
+import {
+  calculateTodayStats,
+  calculateDailyData,
+  calculateAverageOrderValue,
+  getBattleRank,
+  getEstimatedCommissionDescription,
+} from "@/lib/dashboard-calculations";
 
 // 型定義は @/types/dashboard からインポート
 
@@ -547,70 +554,17 @@ export default function DashboardClient() {
   }, []);
 
   // 日別集計データ（直近30日）
+  // データソース: orders
+  // 計算ロジック: calculateDailyData() を使用
   const dailyData = useMemo(() => {
-    if (orders.length === 0) return [];
-
-    const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
-    const dailyMap = new Map<string, { gmv: number; orders: number }>();
-
-    // 過去30日分の日付を初期化
-    for (let i = 0; i < 30; i++) {
-      const date = new Date(thirtyDaysAgo);
-      date.setDate(date.getDate() + i);
-      const dayKey = `${date.getFullYear()}-${String(
-        date.getMonth() + 1
-      ).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-      dailyMap.set(dayKey, { gmv: 0, orders: 0 });
-    }
-
-    // 注文データを日別に集計
-    orders.forEach((order) => {
-      if (!order.created_at) return;
-      const created = new Date(order.created_at);
-      if (created < thirtyDaysAgo) return;
-
-      const dayKey = `${created.getFullYear()}-${String(
-        created.getMonth() + 1
-      ).padStart(2, "0")}-${String(created.getDate()).padStart(2, "0")}`;
-
-      const current = dailyMap.get(dayKey) || { gmv: 0, orders: 0 };
-      dailyMap.set(dayKey, {
-        gmv: current.gmv + (order.amount || 0),
-        orders: current.orders + 1,
-      });
-    });
-
-    // 配列に変換してソート
-    return Array.from(dailyMap.entries())
-      .map(([date, data]) => ({
-        date,
-        gmv: data.gmv,
-        orders: data.orders,
-      }))
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    return calculateDailyData(orders);
   }, [orders]);
 
   // 今日の売上と注文件数
+  // データソース: orders
+  // 計算ロジック: calculateTodayStats() を使用
   const todayStats = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    const todayOrders = orders.filter((order) => {
-      if (!order.created_at) return false;
-      const created = new Date(order.created_at);
-      return created >= today && created < tomorrow;
-    });
-
-    const todayGmv = todayOrders.reduce(
-      (sum, order) => sum + (order.amount || 0),
-      0
-    );
-    const todayCount = todayOrders.length;
-
-    return { gmv: todayGmv, count: todayCount };
+    return calculateTodayStats(orders);
   }, [orders]);
 
   /**
@@ -1107,6 +1061,8 @@ export default function DashboardClient() {
             </div>
 
             {/* 今日の売上 */}
+            {/* データソース: orders (fetchSalesData で取得) */}
+            {/* 計算ロジック: calculateTodayStats() を使用 */}
             <DashboardCard
               title="今日の売上"
               icon={<TrendingUp className="w-4 h-4 text-sky-400" />}
@@ -1123,6 +1079,8 @@ export default function DashboardClient() {
             </DashboardCard>
 
             {/* 報酬見込み */}
+            {/* データソース: salesStats.estimatedCommission (fetchSalesData で計算) */}
+            {/* 計算ロジック: 商品ごとの creator_share_rate で計算 */}
             <DashboardCard
               title="報酬見込み"
               icon={<Trophy className="w-4 h-4 text-emerald-400" />}
@@ -1134,7 +1092,7 @@ export default function DashboardClient() {
                 ¥{salesStats.estimatedCommission.toLocaleString()}
               </p>
               <p className="text-[11px] text-zinc-500">
-                累計売上の30%相当
+                {getEstimatedCommissionDescription(salesStats)}
               </p>
             </DashboardCard>
           </div>
@@ -1142,6 +1100,8 @@ export default function DashboardClient() {
           {/* 報酬サマリー（確定済み/pending） */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             {/* 確定済み報酬 */}
+            {/* データソース: payoutStats.totalPaid (fetchPayoutStats で計算) */}
+            {/* 計算ロジック: payouts から status = 'paid' をフィルタ → creator_amount を合計 */}
             <DashboardCard
               title="確定済み報酬"
               icon={<CheckCircle className="w-4 h-4 text-emerald-400" />}
@@ -1159,6 +1119,8 @@ export default function DashboardClient() {
             </DashboardCard>
 
             {/* 支払い待ち報酬 */}
+            {/* データソース: payoutStats.totalPending (fetchPayoutStats で計算) */}
+            {/* 計算ロジック: payouts から status = 'pending' をフィルタ → creator_amount を合計 */}
             <DashboardCard
               title="支払い待ち"
               icon={<Zap className="w-4 h-4 text-amber-400" />}
@@ -1177,57 +1139,87 @@ export default function DashboardClient() {
           </div>
 
           {/* 現在の順位 */}
-          <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-zinc-950/80 to-zinc-900/60 p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Target className="w-4 h-4 text-purple-400" />
-                <p className="text-xs text-zinc-400 uppercase tracking-wide">
-                  現在のポジション
-                </p>
-              </div>
-              {battles.length > 0 && battles[0].rank > 0 ? (
-                <div>
-                  <p className="text-lg font-semibold text-white mb-1">
-                    #{battles[0].rank}
-                  </p>
-                  <p className="text-[11px] text-zinc-500">
-                    {battles[0].title || battles[0].category}内
-                  </p>
-                </div>
-              ) : (
-                <div>
-                  <p className="text-lg font-semibold text-zinc-400 mb-1">
-                    —
-                  </p>
-                  <p className="text-[11px] text-zinc-500">
-                    バトルに参加すると表示されます
-                  </p>
-                </div>
-              )}
-          </div>
+          <DashboardCard
+            title="現在のポジション"
+            icon={<Target className="w-4 h-4 text-purple-400" />}
+            isLoading={loadingState.battles || loadingState.ranking}
+            error={errorState.battles || errorState.ranking}
+            onRetry={
+              user?.id
+                ? () => {
+                    fetchBattleStatus(user.id);
+                    fetchRanking(user.id);
+                  }
+                : undefined
+            }
+          >
+            {(() => {
+              // データソース: battles[0].rank または myRank
+              // 計算ロジック: バトル内順位を優先、なければ全体ランキング
+              const battleRank = getBattleRank(battles);
+              
+              if (battleRank !== null) {
+                return (
+                  <div>
+                    <p className="text-lg font-semibold text-white mb-1">
+                      #{battleRank}
+                    </p>
+                    <p className="text-[11px] text-zinc-500">
+                      {battles[0].title || battles[0].category}内
+                    </p>
+                  </div>
+                );
+              } else if (myRank !== null) {
+                return (
+                  <div>
+                    <p className="text-lg font-semibold text-white mb-1">
+                      #{myRank}
+                    </p>
+                    <p className="text-[11px] text-zinc-500">
+                      全体ランキング
+                    </p>
+                  </div>
+                );
+              } else {
+                return (
+                  <div>
+                    <p className="text-lg font-semibold text-zinc-400 mb-1">
+                      —
+                    </p>
+                    <p className="text-[11px] text-zinc-500">
+                      バトルに参加すると表示されます
+                    </p>
+                  </div>
+                );
+              }
+            })()}
+          </DashboardCard>
 
           {/* 累計サマリ（小さめ） */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* 累計販売件数 */}
+            {/* データソース: salesStats.totalSales (fetchSalesData で計算) */}
             <div className="rounded-xl border border-white/10 bg-zinc-950/50 px-4 py-3">
               <p className="text-xs text-zinc-400 mb-1">累計販売件数</p>
               <p className="text-lg font-semibold text-white">
                 {salesStats.totalSales.toLocaleString()} 件
               </p>
             </div>
+            {/* 累計売上 */}
+            {/* データソース: salesStats.totalRevenue (fetchSalesData で計算) */}
             <div className="rounded-xl border border-white/10 bg-zinc-950/50 px-4 py-3">
               <p className="text-xs text-zinc-400 mb-1">累計売上</p>
               <p className="text-lg font-semibold text-white">
                 ¥{salesStats.totalRevenue.toLocaleString()}
               </p>
             </div>
+            {/* 平均注文単価 */}
+            {/* データソース: salesStats (計算値) */}
+            {/* 計算ロジック: calculateAverageOrderValue() を使用 */}
             <div className="rounded-xl border border-white/10 bg-zinc-950/50 px-4 py-3">
               <p className="text-xs text-zinc-400 mb-1">平均注文単価</p>
               <p className="text-lg font-semibold text-white">
-                ¥
-                {salesStats.totalSales > 0
-                  ? Math.floor(
-                      salesStats.totalRevenue / salesStats.totalSales
-                    ).toLocaleString()
-                  : "0"}
+                ¥{calculateAverageOrderValue(salesStats).toLocaleString()}
               </p>
             </div>
           </div>
