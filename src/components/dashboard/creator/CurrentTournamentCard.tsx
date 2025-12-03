@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { DashboardCard } from "@/components/dashboard/DashboardCard";
-import { Trophy, Zap, TrendingUp } from "lucide-react";
+import { Trophy, Zap, TrendingUp, ArrowRight, ExternalLink } from "lucide-react";
 import type { Tournament, TournamentRankingRow } from "@/lib/arena/types";
 import { calculateRevenueShareFromProduct } from "@/lib/revenue-share";
 
@@ -174,14 +175,53 @@ export function CurrentTournamentCard({
                   </p>
                 </div>
               </div>
+
+              {/* 詳細を見るリンク */}
+              <Link
+                href={`/arena/${tournament.slug}`}
+                className="mt-3 inline-flex items-center gap-1.5 text-xs text-sky-300 hover:text-sky-200 transition-colors"
+              >
+                詳細を見る
+                <ExternalLink className="w-3 h-3" />
+              </Link>
             </>
+          ) : tournament.status === "live" ? (
+            <div>
+              <p className="text-sm text-zinc-400 mb-2">
+                このトーナメントに参加していません
+              </p>
+              <p className="text-[11px] text-zinc-500 mb-3">
+                商品を選んでバトルに参加しましょう
+              </p>
+              <Link
+                href="/products"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-white bg-emerald-500/20 border border-emerald-500/30 rounded-lg hover:bg-emerald-500/30 transition-colors"
+              >
+                商品一覧へ
+                <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+          ) : tournament.status === "scheduled" ? (
+            <div>
+              <p className="text-sm text-zinc-400 mb-1">
+                開始予定: {new Date(tournament.startAt).toLocaleString("ja-JP", {
+                  month: "2-digit",
+                  day: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+              <p className="text-[11px] text-zinc-500">
+                開始までお待ちください
+              </p>
+            </div>
           ) : (
             <div>
               <p className="text-sm text-zinc-400 mb-1">
-                まだ参加していません
+                このバトルは終了しました
               </p>
               <p className="text-[11px] text-zinc-500">
-                紹介リンクを投稿して参加しましょう
+                次の開催をお待ちください
               </p>
             </div>
           )}

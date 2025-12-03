@@ -53,8 +53,8 @@ export const copy = {
         en: "GMV / 24h",
       },
       noteMock: {
-        ja: "デモ表示です。実際のダッシュボードでは、あなたの売上とランキングがリアルタイムで更新されます。",
-        en: "Demo display. In the real dashboard, your revenue and rankings update in real time.",
+        ja: "この画面はデモ表示です。正式リリース版では、あなたの実際の売上とランキングがリアルタイムで表示されます。",
+        en: "This is a demo display. In the official release, your actual revenue and rankings will be displayed in real time.",
       },
       currentRankLabel: {
         ja: "Current Rank",

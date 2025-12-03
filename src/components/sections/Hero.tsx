@@ -5,6 +5,7 @@ import { SectionWrapper } from "@/components/layout/SectionWrapper";
 import { CountUpText } from "@/components/common/CountUpText";
 import { useLanguage } from "@/lib/language";
 import { copy, t } from "@/lib/copy";
+import { getLandingArenaHighlight } from "@/lib/arena/landing-mock";
 
 type HeroProps = {
   onOpenEarlyAccess?: () => void;
@@ -18,6 +19,10 @@ export const HeroSection: React.FC<HeroProps> = ({ onOpenEarlyAccess }) => {
   const { language } = useLanguage();
   const c = copy.hero;
   const d = copy.hero.dashboard;
+  
+  // Landing Page 用の Arena ハイライト情報を取得
+  // MVP ではモックデータを使用。将来的には実データに差し替え可能
+  const arenaHighlight = getLandingArenaHighlight();
 
   const handleScrollTo = (id: string) => {
     const el = document.getElementById(id);
@@ -152,7 +157,7 @@ export const HeroSection: React.FC<HeroProps> = ({ onOpenEarlyAccess }) => {
                     </p>
                     <CountUpText
                       from={3}
-                      to={8}
+                      to={arenaHighlight.activeBattles}
                       durationMs={900}
                       className="mt-1 text-sm font-semibold text-white"
                     />
@@ -163,7 +168,7 @@ export const HeroSection: React.FC<HeroProps> = ({ onOpenEarlyAccess }) => {
                     </p>
                     <CountUpText
                       from={40}
-                      to={120}
+                      to={arenaHighlight.activeCreators}
                       durationMs={1000}
                       suffix="+"
                       className="mt-1 text-sm font-semibold text-white"
@@ -175,7 +180,7 @@ export const HeroSection: React.FC<HeroProps> = ({ onOpenEarlyAccess }) => {
                     </p>
                     <CountUpText
                       from={80}
-                      to={128}
+                      to={80 + arenaHighlight.gmv24hChange}
                       durationMs={1100}
                       prefix="+"
                       suffix="%"
@@ -202,7 +207,7 @@ export const HeroSection: React.FC<HeroProps> = ({ onOpenEarlyAccess }) => {
                       {t(d.currentRankLabel, language)}
                     </p>
                     <p className="text-sm font-semibold text-white">
-                      #07 / NIGHT TOURNAMENT
+                      #{getLandingArenaHighlight().currentRank} / {getLandingArenaHighlight().tournamentName}
                     </p>
                   </div>
                   <div className="text-right">
@@ -210,15 +215,15 @@ export const HeroSection: React.FC<HeroProps> = ({ onOpenEarlyAccess }) => {
                       {t(d.estRewardLabel, language)}
                     </p>
                     <p className="text-sm font-semibold text-amber-300">
-                      ¥12,400
+                      ¥{getLandingArenaHighlight().estimatedReward.toLocaleString()}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center justify-between rounded-2xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-3 text-[11px] text-emerald-100">
-                  <p>{t(d.hotMessage, language)}</p>
+                  <p>{arenaHighlight.hotMessage}</p>
                   <CountUpText
                     from={18}
-                    to={32}
+                    to={18 + arenaHighlight.clickRateChange}
                     durationMs={900}
                     prefix="+"
                     suffix="%"
