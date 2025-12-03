@@ -267,6 +267,109 @@
 
 ---
 
+## ローカル Dry Run 実施結果
+
+### 実施日
+2025-01-30
+
+### 実施内容
+本番と同じ構成でローカル環境（`http://localhost:3000`）で「NIGHT BATTLE #01」の Dry Run を実施。
+
+### 実施結果
+
+#### Step 1-3: リポジトリ状態 & 依存関係チェック / .env.local 確認 / 開発サーバー起動
+- ✅ `git status`: クリーンな状態（submodule の変更のみ）
+- ✅ `npm install`: 依存関係は最新
+- ✅ `npm run build`: ビルド成功
+- ✅ `npm run dev`: 開発サーバー起動成功（`http://localhost:3000`）
+- ✅ `.env.local`: 存在確認（`sell-rush-lp/.env.local`）
+- ✅ 環境変数読み込み: `src/lib/supabase-server.ts` と `src/lib/supabase.ts` で正常に読み込み
+
+#### Step 3: 主要ルート確認
+- ✅ `http://localhost:3000/`: LP が正常に表示される
+- ✅ `http://localhost:3000/login`: ログイン画面が正常に表示される
+- ✅ `http://localhost:3000/arena/test-tournament`: 404 ページが正常に表示される（エラーハンドリングが正しく効いている）
+
+#### Step 4-5: テストユーザー確認 & トーナメント作成（Supabase Dashboard）
+**注意**: これらのステップは Supabase Dashboard での手動操作が必要なため、実際の Dry Run では以下を実施:
+
+1. **テストユーザー確認**:
+   - Supabase Dashboard → Auth → Users
+   - Admin ユーザー: `user_metadata.role = 'admin'` を確認
+   - Creator ユーザー: `user_metadata.role = 'creator'` を確認
+
+2. **トーナメント作成**:
+   - Supabase Dashboard → Table Editor → tournaments
+   - 以下の SQL でトーナメントを作成:
+   ```sql
+   INSERT INTO tournaments (
+     id,
+     slug,
+     title,
+     description,
+     status,
+     start_at,
+     end_at,
+     product_id,
+     created_by
+   ) VALUES (
+     gen_random_uuid(),
+     'night-battle-01',
+     'NIGHT BATTLE #01',
+     '初回トーナメント Dry Run。期間中の売上金額でランキングを競います。',
+     'scheduled',
+     NOW() + INTERVAL '5 minutes',
+     NOW() + INTERVAL '77 hours',
+     '<既存の商品ID>',
+     '<Admin ユーザーID>'
+   );
+   ```
+
+#### Step 6-10: Admin / Creator / Arena 導線確認
+**注意**: これらのステップは実際のログインとトーナメント作成が必要なため、Dry Run では以下を確認:
+
+1. **Admin Console**:
+   - `/admin/arena/tournaments`: トーナメント一覧が表示される
+   - `/admin/arena/tournaments/night-battle-01`: トーナメント詳細が表示される
+   - ステータス変更（`scheduled` → `live` → `finished`）が正常に動作する
+
+2. **Creator Dashboard**:
+   - `/dashboard`: Creator Dashboard が表示される
+   - `CurrentTournamentCard` が表示される（トーナメントが `live` の場合）
+   - トーナメント情報（順位、売上、推定報酬）が表示される
+
+3. **Arena 公開ページ**:
+   - `/arena/night-battle-01`: 未ログインでも表示可能
+   - ランキングが空でもエラーにならない
+   - トーナメント情報（タイトル、期間）が表示される
+
+### 気づいた点
+
+#### UX / Admin 操作
+- Admin トーナメント一覧ページ（`/admin/arena/tournaments`）に「新規作成」ボタンがあるが、`/admin/arena/tournaments/new` ページは未実装
+- トーナメント作成は Supabase Dashboard で直接作成する必要がある（Dry Run では問題なし）
+
+#### バグと思われる挙動
+- 現時点で明らかなバグは見つかっていない
+- 実際のトーナメント作成とログイン後の動作確認が必要
+
+### 次のステップ
+
+1. **Supabase Dashboard でトーナメント作成**:
+   - 上記の SQL を実行してトーナメントを作成
+   - 既存の商品IDとAdminユーザーIDを確認
+
+2. **Admin / Creator ログイン後の動作確認**:
+   - Admin でトーナメント一覧・詳細を確認
+   - Creator で Dashboard のトーナメントカードを確認
+   - ステータス遷移（`scheduled` → `live` → `finished`）を確認
+
+3. **Arena ページの確認**:
+   - 未ログイン状態で `/arena/night-battle-01` にアクセス
+   - ランキングが空でもエラーにならないことを確認
+
+---
+
 ## 関連ドキュメント
 
 - `docs/PHASE10_RUNBOOK.md`: Admin Runbook（日次監視タスク）
