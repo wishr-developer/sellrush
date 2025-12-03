@@ -184,6 +184,12 @@ export default function AdminDashboardClient() {
             >
               Users
             </Link>
+            <Link
+              href="/admin/arena/tournaments"
+              className="text-xs text-slate-500 hover:text-slate-400 transition-colors opacity-60"
+            >
+              Arena
+            </Link>
             <button
               onClick={async () => {
                 await supabase.auth.signOut();
