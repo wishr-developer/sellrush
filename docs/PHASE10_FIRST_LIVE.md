@@ -370,6 +370,124 @@
 
 ---
 
+## 本番 Dry Run 実施結果
+
+### 実施日
+[YYYY-MM-DD]
+
+### 実施環境
+- Vercel 本番 URL: https://sellrush.vercel.app
+- Supabase プロジェクト: SellRush 本番
+
+### 使用したアカウント
+- Admin アカウント: [メールアドレス]
+- Creator アカウント: [メールアドレス]
+
+### トーナメント情報
+- Slug: `night-battle-01`
+- タイトル: NIGHT BATTLE #01
+- ステータス遷移: `scheduled` → `live` → `finished`
+
+### 実施結果
+
+#### Step 1: テストユーザー確認（Supabase Dashboard）
+- [ ] Admin ユーザーが存在し、`user_metadata.role = "admin"` が設定されている
+- [ ] Creator ユーザー（1〜2名）が存在し、`user_metadata.role = "creator"` が設定されている
+
+#### Step 2: トーナメント作成（Supabase SQL Editor）
+- [ ] トーナメントが正常に作成された
+- [ ] `slug = 'night-battle-01'` が設定されている
+- [ ] `status = 'scheduled'` が設定されている
+- [ ] `start_at` と `end_at` が適切に設定されている
+
+**使用した SQL**:
+```sql
+-- NIGHT BATTLE #01 作成
+INSERT INTO tournaments (
+  id,
+  title,
+  slug,
+  status,
+  start_at,
+  end_at,
+  product_id,
+  created_by
+) VALUES (
+  gen_random_uuid(),
+  'NIGHT BATTLE #01',
+  'night-battle-01',
+  'scheduled',
+  now() + interval '10 minutes',        -- 開始時刻（必要に応じて調整）
+  now() + interval '3 days',            -- 終了時刻（72h 想定）
+  NULL,                                 -- 商品ID（必要に応じて設定）
+  '<ADMIN_USER_ID_HERE>'                -- Admin ユーザーの UUID に置き換え
+);
+```
+
+#### Step 3: Admin 側での確認（本番 URL）
+- [ ] Admin でログインできる
+- [ ] トーナメント一覧に「NIGHT BATTLE #01」が表示される
+- [ ] トーナメント詳細ページが正常に表示される
+- [ ] 500 エラーや真っ白画面にならない
+
+#### Step 4: Creator Dashboard からの見え方確認
+- [ ] Creator でログインできる
+- [ ] Creator Dashboard にトーナメント情報が表示される
+- [ ] 「詳細を見る」リンクが正常に動作する
+- [ ] 500 エラーや真っ白画面にならない
+
+#### Step 5: ステータス遷移の Dry Run
+
+##### 5-1. scheduled → live
+- [ ] Admin 画面でステータスが "ライブ中" に変わる
+- [ ] Creator Dashboard の表示が更新される
+- [ ] Arena ページが正常に表示される（ランキングが空でもエラーにならない）
+
+**使用した SQL**:
+```sql
+UPDATE tournaments
+SET status = 'live'
+WHERE slug = 'night-battle-01';
+```
+
+##### 5-2. live → finished
+- [ ] Admin 画面でステータスが "終了" に変わる
+- [ ] Creator Dashboard の表示が「終了」状態に変わる
+- [ ] Arena ページが正常に表示される（終了状態のコピーが表示される）
+
+**使用した SQL**:
+```sql
+UPDATE tournaments
+SET status = 'finished'
+WHERE slug = 'night-battle-01';
+```
+
+#### Step 6: 最低限の注文フロー確認（任意）
+- [ ] テスト購入が正常に完了する
+- [ ] `orders` テーブルにレコードが追加される
+- [ ] ランキングに反映される
+
+### 気づいた問題 / 手作業がつらかったポイント
+
+[ここに気づいた問題や改善点を記録してください]
+
+例:
+- Admin 画面でのステータス変更が手動（SQL）で行う必要がある
+- Creator Dashboard のトーナメントカードの表示が少し遅い
+- Arena ページのランキングが空の時のメッセージが分かりにくい
+
+### 完了条件の確認
+
+- [ ] Admin / Creator / LP / Arena が一連のトーナメント状態変化に追従すること
+- [ ] どこかで 500 エラーや真っ白画面にならないこと
+- [ ] 手で status を変えれば、なんとか 1 本のトーナメントが完走するイメージが持てること
+
+### 次のステップ
+
+[本番 Dry Run の結果を踏まえて、次に実施すべきことを記録してください]
+
+---
+
 ## 関連ドキュメント
 
 - `docs/PHASE10_RUNBOOK.md`: Admin Runbook（日次監視タスク）
