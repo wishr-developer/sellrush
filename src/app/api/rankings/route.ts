@@ -110,11 +110,15 @@ export async function GET(request: NextRequest) {
         rank: index + 1,
       }));
 
-    // 現在のユーザーの順位を取得
-    const myRankIndex = rankings.findIndex(
-      (r) => r.creatorId === user.id
-    );
-    const myRank = myRankIndex >= 0 ? myRankIndex + 1 : null;
+    // 現在のユーザーの順位を取得（認証済みの場合のみ）
+    const myRank = userId
+      ? (() => {
+          const myRankIndex = rankings.findIndex(
+            (r) => r.creatorId === userId
+          );
+          return myRankIndex >= 0 ? myRankIndex + 1 : null;
+        })()
+      : null;
 
     return NextResponse.json({
       rankings: rankings.map((r) => ({
