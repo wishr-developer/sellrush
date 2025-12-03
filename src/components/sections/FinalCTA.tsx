@@ -81,6 +81,12 @@ export const FinalCTASection: React.FC<FinalCTAProps> = ({
           </button>
           <button
             type="button"
+            onClick={() => {
+              // Brand 向けの導線: /brand または /login?mode=brand に遷移
+              if (typeof window !== "undefined") {
+                window.location.href = "/login?mode=brand";
+              }
+            }}
             className="inline-flex w-full items-center justify-center rounded-full border border-white/60 bg-black/40 px-7 py-2.5 text-xs font-semibold tracking-[0.18em] text-white transition hover:bg-white/10 sm:w-auto"
           >
             ENTER AS BRAND

@@ -310,8 +310,18 @@ export default function TournamentLeaderboardClient() {
               </p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {rankings.map((ranking) => {
+            <>
+              {/* ランキングヘッダー（説明） */}
+              <div className="mb-4 pb-3 border-b border-white/10">
+                <p className="text-xs text-zinc-400 mb-1">
+                  このトーナメントは、期間中の売上金額でランキングを競います。
+                </p>
+                <p className="text-[11px] text-zinc-500">
+                  上位のクリエイターには、トーナメント終了後に報酬が分配されます。
+                </p>
+              </div>
+              <div className="space-y-2">
+                {rankings.map((ranking) => {
                 const isCurrentUser =
                   currentUserId && ranking.influencerId === currentUserId;
                 const rankStyle = getRankStyle(ranking.rank, !!isCurrentUser);
@@ -368,7 +378,8 @@ export default function TournamentLeaderboardClient() {
                   </div>
                 );
               })}
-            </div>
+              </div>
+            </>
           )}
 
           {/* 自分の順位がランキング外の場合 */}

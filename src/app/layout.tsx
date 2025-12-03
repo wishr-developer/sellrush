@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 const siteUrl =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://example.com";
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://sellrush.vercel.app";
 
 // ルート（日本語）側のデフォルトメタデータ
 export const metadata: Metadata = {
@@ -37,12 +37,23 @@ export const metadata: Metadata = {
     siteName: "SELL RUSH",
     locale: "ja_JP",
     type: "website",
+    // TODO: OG 画像を追加する場合は /og-default.png などのパスを指定
+    // images: [
+    //   {
+    //     url: "/og-default.png",
+    //     width: 1200,
+    //     height: 630,
+    //     alt: "SELL RUSH",
+    //   },
+    // ],
   },
   twitter: {
     card: "summary_large_image",
     title: "SELL RUSH – ソーシャルセリング・アリーナプラットフォーム",
     description:
       "インフルエンサーとブランドのための「販売バトル型」ソーシャルセリング・プラットフォーム SELL RUSH のシネマティックLP。",
+    // TODO: Twitter 画像を追加する場合は /og-default.png などのパスを指定
+    // images: ["/og-default.png"],
   },
   verification: {
     google: "HFQX07XJ6AWIutOvFEhHI68n6ait4ei8nchO3fFK4qY",
